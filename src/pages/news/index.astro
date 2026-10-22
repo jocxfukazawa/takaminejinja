@@ -1,0 +1,16 @@
+---
+import Base from '../../layouts/Base.astro';
+import PageHeader from '../../components/PageHeader.astro';
+import Headline from '../../components/Headline.astro';
+import NewsList from '../../components/NewsList.astro';
+import { pages, news } from '../../data/site';
+
+const page = pages.news;
+---
+<Base title={page.title} description={page.description}>
+  <PageHeader title={page.title} img={page.headerImg} crumbs={[{ label: page.title }]} />
+  <div class="l-contents l-inner">
+    <Headline tag="h1">お知らせ</Headline>
+    <NewsList items={news} />
+  </div>
+</Base>

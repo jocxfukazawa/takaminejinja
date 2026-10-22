@@ -1,0 +1,13 @@
+---
+import Base from '../layouts/Base.astro';
+import Breadcrumb from '../components/Breadcrumb.astro';
+import Headline from '../components/Headline.astro';
+---
+<Base title="ページが見つかりません">
+  <Breadcrumb items={[{ label: 'ページが見つかりません' }]} />
+  <div class="l-contents l-inner l-contents--narrow p-notfound">
+    <Headline tag="h1">ページが見つかりません</Headline>
+    <p>お探しのページは移動または削除された可能性があります。</p>
+    <p class="p-index-button"><a class="p-btn" href="/">トップページへ</a></p>
+  </div>
+</Base>

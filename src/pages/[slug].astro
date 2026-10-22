@@ -1,0 +1,49 @@
+---
+// ブログ記事（旧サイトと同じくルート直下のURL: /kuroboshi_unki/ など）
+import Base from '../layouts/Base.astro';
+import Breadcrumb from '../components/Breadcrumb.astro';
+import Headline from '../components/Headline.astro';
+import EntryNav from '../components/EntryNav.astro';
+import { blog, type BlogEntry } from '../data/site';
+
+export function getStaticPaths() {
+  return blog.map((entry, i) => ({
+    params: { slug: entry.slug },
+    props: { entry, prev: blog[i + 1], next: blog[i - 1] },
+  }));
+}
+
+interface Props {
+  entry: BlogEntry;
+  prev?: BlogEntry;
+  next?: BlogEntry;
+}
+const { entry, prev, next } = Astro.props;
+---
+<Base title={entry.title} description={entry.description} ogImage={entry.img}>
+  <Breadcrumb items={[{ label: 'ブログ', href: '/blog/' }, { label: entry.title }]} />
+  <div class="l-contents l-inner l-contents--sidebar">
+    <article class="p-entry">
+      <header class="p-entry__header">
+        <Headline tag="h1" class="p-entry__title">{entry.title}</Headline>
+        <time class="p-entry__date" datetime={entry.datetime}>{entry.date}</time>
+        {entry.img && <figure class="p-entry__img"><img src={entry.img} alt="" /></figure>}
+      </header>
+      <div class="p-entry__body" set:html={entry.html} />
+      <EntryNav base="/" prev={prev} next={next} />
+    </article>
+    <aside class="l-secondary">
+      <h2 class="p-widget__title">最近の記事</h2>
+      <ul class="p-widget-posts">
+        {blog.map((b) => (
+          <li>
+            <a href={`/${b.slug}/`}>
+              {b.thumb && <img src={b.thumb} alt="" loading="lazy" />}
+              <span><span class="p-widget-posts__title">{b.title}</span><time>{b.date}</time></span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </aside>
+  </div>
+</Base>

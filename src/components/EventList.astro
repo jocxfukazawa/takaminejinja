@@ -1,0 +1,21 @@
+---
+import type { EventEntry } from '../data/site';
+
+interface Props {
+  items: EventEntry[];
+}
+const { items } = Astro.props;
+---
+<ul class="p-event-list">
+  {items.map((e) => (
+    <li>
+      <a class="p-event-list__link p-hover-effect" href={`/event/${e.slug}/`}>
+        <div class="p-event-list__img">{e.listImg && <img src={e.listImg} alt="" loading="lazy" />}</div>
+        <div class="p-event-list__content">
+          <h3 class="p-event-list__title">{e.title}</h3>
+          <p class="p-event-list__date">{e.dateText}</p>
+        </div>
+      </a>
+    </li>
+  ))}
+</ul>

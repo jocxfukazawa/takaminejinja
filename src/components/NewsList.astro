@@ -1,0 +1,21 @@
+---
+import type { NewsEntry } from '../data/site';
+
+interface Props {
+  items: NewsEntry[];
+}
+const { items } = Astro.props;
+---
+<ul class="p-news-list">
+  {items.map((n) => (
+    <li>
+      <a class="p-hover-effect" href={`/news/${n.slug}/`}>
+        {n.thumb && <div class="p-news-list__img"><img src={n.thumb} alt="" loading="lazy" width="100" height="100" /></div>}
+        <div class="p-news-list__content">
+          <time class="p-news-list__date" datetime={n.datetime}>{n.date}</time>
+          <p class="p-news-list__title">{n.title}</p>
+        </div>
+      </a>
+    </li>
+  ))}
+</ul>

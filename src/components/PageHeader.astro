@@ -1,0 +1,17 @@
+---
+import Breadcrumb from './Breadcrumb.astro';
+
+interface Props {
+  title: string;
+  img?: string | null;
+  crumbs: { label: string; href?: string }[];
+}
+const { title, img, crumbs } = Astro.props;
+---
+{img && (
+  <header class="p-page-header">
+    <div class="p-page-header__img"><img src={img} alt="" /></div>
+    <p class="p-page-header__title"><span>{title}</span></p>
+  </header>
+)}
+<Breadcrumb items={crumbs} />

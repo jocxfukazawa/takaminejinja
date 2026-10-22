@@ -1,0 +1,165 @@
+---
+import '../styles/global.css';
+import {
+  SITE_NAME, SITE_DESCRIPTION, GA_ID, NAV, LOGO, LOGO_WHITE, FAVICON, APPLE_ICON,
+  FOOTER_LINK_IMG, ADDRESS, TEL, MAP_EMBED, SOCIAL,
+} from '../data/site';
+import SocialIcon from '../components/SocialIcon.astro';
+
+interface Props {
+  title?: string;
+  description?: string | null;
+  ogImage?: string | null;
+  front?: boolean;
+}
+
+const { title, description, ogImage, front = false } = Astro.props;
+const fullTitle = title ? `${title} - ${SITE_NAME}` : SITE_NAME;
+const desc = description || SITE_DESCRIPTION;
+const canonical = new URL(Astro.url.pathname, Astro.site);
+const image = new URL(ogImage || LOGO, Astro.site);
+const current = Astro.url.pathname;
+const isCurrent = (href: string) => current === href || (href !== '/' && current.startsWith(href));
+---
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{fullTitle}</title>
+  <meta name="description" content={desc} />
+  <link rel="canonical" href={canonical} />
+  <meta property="og:type" content={front ? 'website' : 'article'} />
+  <meta property="og:site_name" content={SITE_NAME} />
+  <meta property="og:title" content={fullTitle} />
+  <meta property="og:description" content={desc} />
+  <meta property="og:url" content={canonical} />
+  <meta property="og:image" content={image} />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href={FAVICON} sizes="32x32" />
+  <link rel="apple-touch-icon" href={APPLE_ICON} />
+  <script is:inline async src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}></script>
+  <script is:inline define:vars={{ GA_ID }}>
+    window.dataLayer = window.dataLayer || [];
+    function gtag() { dataLayer.push(arguments); }
+    gtag('js', new Date());
+    gtag('config', GA_ID);
+  </script>
+  <slot name="head" />
+</head>
+<body class:list={[front && 'is-front']}>
+  {front && (
+    <div class="p-front-header">
+      <div class="p-logoset">
+        <h1 class="p-logoset__logo"><a href="/"><img src={LOGO_WHITE} alt={SITE_NAME} /></a></h1>
+        <p class="p-logoset__desc"><span>創建972年</span><span>1050年の歴史</span><span>家庭円満の宮</span></p>
+      </div>
+      <nav class="p-front-nav" aria-label="メインメニュー">
+        <ul>{NAV.map((n) => <li><a href={n.href}>{n.label}</a></li>)}</ul>
+      </nav>
+    </div>
+  )}
+
+  <header class:list={['l-header', front ? 'l-header--front' : 'is-active']} id="js-header">
+    <div class="l-header__inner l-inner">
+      <div class="l-header__logo"><a href="/"><img src={LOGO} alt={SITE_NAME} width="160" /></a></div>
+      <nav class="p-global-nav" id="js-global-nav" aria-label="メインメニュー">
+        <ul>
+          {NAV.map((n) => (
+            <li class:list={[isCurrent(n.href) && 'is-current']}><a href={n.href}>{n.label}</a></li>
+          ))}
+        </ul>
+      </nav>
+      <button class="p-menu-btn" id="js-menu-btn" aria-label="メニュー" aria-expanded="false" aria-controls="js-global-nav">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </header>
+
+  <main class="l-main">
+    <slot />
+  </main>
+
+  <footer class="l-footer">
+    <section class="p-footer-link" style={`background-image: url(${FOOTER_LINK_IMG})`}>
+      <p class="p-footer-link__btn">
+        <a class="p-btn" href="/access/">交通アクセス・御朱印についてはこちら</a>
+      </p>
+    </section>
+    <div class="p-info">
+      <div class="l-inner">
+        <nav class="p-footer-nav" aria-label="フッターメニュー">
+          <ul>{NAV.map((n) => <li><a href={n.href}>{n.label}</a></li>)}</ul>
+        </nav>
+        <div class="p-info__logo"><a href="/"><img src={LOGO} alt={SITE_NAME} width="160" loading="lazy" /></a></div>
+        <div class="p-info__map">
+          <iframe src={MAP_EMBED} title="高嶺神社の地図" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>
+        </div>
+        <p class="p-info__address">{ADDRESS}<br />{TEL}</p>
+        <ul class="p-social-nav">
+          {SOCIAL.map((s) => (
+            <li><a href={s.href} target="_blank" rel="noopener" aria-label={s.name}><SocialIcon name={s.name} /></a></li>
+          ))}
+        </ul>
+      </div>
+    </div>
+    <p class="p-copyright"><small>Copyright &copy; {SITE_NAME} All Rights Reserved.</small></p>
+  </footer>
+
+  <a href="#" class="p-pagetop" id="js-pagetop" aria-label="ページの先頭へ"></a>
+
+  <script>
+    const header = document.getElementById('js-header')!;
+    const menuBtn = document.getElementById('js-menu-btn')!;
+    const pagetop = document.getElementById('js-pagetop')!;
+
+    menuBtn.addEventListener('click', () => {
+      const open = document.body.classList.toggle('is-menu-open');
+      menuBtn.setAttribute('aria-expanded', String(open));
+    });
+
+    // トップページでは、ヒーローを過ぎたら固定ヘッダーを表示する
+    const onScroll = () => {
+      const y = window.scrollY;
+      if (header.classList.contains('l-header--front')) {
+        header.classList.toggle('is-active', y > window.innerHeight * 0.6 || window.innerWidth <= 991);
+      }
+      pagetop.classList.toggle('is-active', y > 300);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    onScroll();
+
+    // 本文中のスライダー（旧サイトの slick を置き換え）
+    document.querySelectorAll<HTMLElement>('.pb_slider_wrap').forEach((wrap) => {
+      const items = [...wrap.querySelectorAll<HTMLElement>('.pb_slider_item')];
+      const thumbs = [...wrap.querySelectorAll<HTMLElement>('.pb_slider_nav_item')];
+      if (items.length < 2) return;
+      let index = 0;
+      let timer: number | undefined;
+      const show = (i: number) => {
+        index = (i + items.length) % items.length;
+        items.forEach((el, n) => el.classList.toggle('is-active', n === index));
+        thumbs.forEach((el, n) => el.classList.toggle('is-active', n === index));
+      };
+      const restart = () => {
+        window.clearInterval(timer);
+        timer = window.setInterval(() => show(index + 1), 6000);
+      };
+      const slider = wrap.querySelector('.pb_slider')!;
+      for (const [cls, step, label] of [['prev', -1, '前へ'], ['next', 1, '次へ']] as const) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `pb_slider_arrow pb_slider_arrow--${cls}`;
+        btn.setAttribute('aria-label', label);
+        btn.addEventListener('click', () => { show(index + step); restart(); });
+        slider.appendChild(btn);
+      }
+      thumbs.forEach((el, n) => el.addEventListener('click', () => { show(n); restart(); }));
+      wrap.classList.add('is-ready');
+      show(0);
+      restart();
+    });
+  </script>
+</body>
+</html>

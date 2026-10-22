@@ -1,0 +1,19 @@
+---
+import type { BlogEntry } from '../data/site';
+
+interface Props {
+  items: BlogEntry[];
+}
+const { items } = Astro.props;
+---
+<div class="p-blog-list">
+  {items.map((b) => (
+    <article class="p-blog-list__item">
+      <a class="p-blog-list__img p-hover-effect" href={`/${b.slug}/`}>
+        {b.thumb && <img src={b.thumb} alt="" loading="lazy" />}
+      </a>
+      <a href={`/${b.slug}/`}><h3 class="p-blog-list__title">{b.title}</h3></a>
+      <time class="p-blog-list__date">{b.date}</time>
+    </article>
+  ))}
+</div>

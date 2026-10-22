@@ -1,0 +1,25 @@
+---
+import Base from './Base.astro';
+import PageHeader from '../components/PageHeader.astro';
+import { pages } from '../data/site';
+
+interface Props {
+  slug: string;
+  /** 本文を枠で囲む（高嶺神社について） */
+  boxed?: boolean;
+  narrow?: boolean;
+}
+const { slug, boxed = false, narrow = false } = Astro.props;
+const page = pages[slug];
+---
+<Base title={page.title} description={page.description} ogImage={page.headerImg}>
+  <slot name="head" slot="head" />
+  <PageHeader title={page.headerTitle || page.title} img={page.headerImg} crumbs={[{ label: page.title }]} />
+  <div class:list={['l-contents', 'l-inner', `p-page--${slug}`, narrow && 'l-contents--narrow']}>
+    <div class:list={['l-primary', boxed && 'l-primary--boxed']}>
+      <slot name="before" />
+      <Fragment set:html={page.html} />
+      <slot />
+    </div>
+  </div>
+</Base>

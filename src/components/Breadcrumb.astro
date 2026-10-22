@@ -1,0 +1,16 @@
+---
+interface Props {
+  items: { label: string; href?: string }[];
+}
+const { items } = Astro.props;
+---
+<nav class="p-breadcrumb" aria-label="パンくずリスト">
+  <ol class="p-breadcrumb__inner l-inner">
+    <li class="p-breadcrumb__item p-breadcrumb__item--home"><a href="/" aria-label="ホーム">
+      <svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M8 1 0 8h2v7h4.5v-4.5h3V15H14V8h2z" /></svg>
+    </a></li>
+    {items.map((item) => (
+      <li class="p-breadcrumb__item">{item.href ? <a href={item.href}>{item.label}</a> : <span>{item.label}</span>}</li>
+    ))}
+  </ol>
+</nav>

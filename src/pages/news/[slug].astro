@@ -1,0 +1,47 @@
+---
+import Base from '../../layouts/Base.astro';
+import Breadcrumb from '../../components/Breadcrumb.astro';
+import Headline from '../../components/Headline.astro';
+import EntryNav from '../../components/EntryNav.astro';
+import { news, type NewsEntry } from '../../data/site';
+
+export function getStaticPaths() {
+  return news.map((entry, i) => ({
+    params: { slug: entry.slug },
+    props: { entry, prev: news[i + 1], next: news[i - 1] },
+  }));
+}
+
+interface Props {
+  entry: NewsEntry;
+  prev?: NewsEntry;
+  next?: NewsEntry;
+}
+const { entry, prev, next } = Astro.props;
+const latest = news.filter((n) => n.slug !== entry.slug).slice(0, 5);
+---
+<Base title={entry.title} description={entry.description} ogImage={entry.img}>
+  <Breadcrumb items={[{ label: 'お知らせ', href: '/news/' }, { label: entry.title }]} />
+  <div class="l-contents l-inner">
+    <article class="p-entry">
+      <header class="p-entry__header">
+        <Headline tag="h1" class="p-entry__title">{entry.title}</Headline>
+        <time class="p-entry__date" datetime={entry.datetime}>{entry.date}</time>
+        {entry.img && <figure class="p-entry__img"><img src={entry.img} alt="" /></figure>}
+      </header>
+      <div class="p-entry__body" set:html={entry.html} />
+      <EntryNav base="/news/" prev={prev} next={next} />
+      <section class="p-latest">
+        <div class="p-latest__header">
+          <h2 class="p-latest__title">新着記事</h2>
+          <a class="p-latest__link" href="/news/">お知らせ一覧</a>
+        </div>
+        <ul class="p-latest__list">
+          {latest.map((n) => (
+            <li><a href={`/news/${n.slug}/`}><time>{n.date}</time><span>{n.title}</span></a></li>
+          ))}
+        </ul>
+      </section>
+    </article>
+  </div>
+</Base>

@@ -1,0 +1,15 @@
+# 旧WordPressサイトのURLからの転送
+
+# テーマのサンプル・重複ページ（未使用）
+/schedule/*        /event/       301
+/history/*         /about/       301
+/history_category/* /about/      301
+
+# WordPress の一覧・フィード・管理画面
+/category/*        /blog/        301
+/author/*          /             301
+/feed/             /             301
+/comments/feed/    /             301
+/wp-sitemap.xml    /sitemap-index.xml 301
+/wp-admin/*        /             302
+/wp-login.php      /             302

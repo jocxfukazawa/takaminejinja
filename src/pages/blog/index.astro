@@ -1,0 +1,15 @@
+---
+import Base from '../../layouts/Base.astro';
+import PageHeader from '../../components/PageHeader.astro';
+import BlogList from '../../components/BlogList.astro';
+import { pages, blog } from '../../data/site';
+
+const page = pages.blog;
+---
+<Base title={page.title} description={page.description}>
+  <PageHeader title="ブログ" img={page.headerImg} crumbs={[{ label: 'ブログ' }]} />
+  <div class="l-contents l-inner">
+    <h1 class="u-visually-hidden">ブログ</h1>
+    <BlogList items={blog} />
+  </div>
+</Base>

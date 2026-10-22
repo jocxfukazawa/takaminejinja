@@ -1,0 +1,63 @@
+---
+import Base from '../layouts/Base.astro';
+import Headline from '../components/Headline.astro';
+import NewsList from '../components/NewsList.astro';
+import EventList from '../components/EventList.astro';
+import BlogList from '../components/BlogList.astro';
+import { UPLOADS, news, events, blog } from '../data/site';
+---
+<Base front>
+  <div class="p-hero">
+    <video class="p-hero__video" autoplay loop muted playsinline poster={`${UPLOADS}/2023/06/mv_01.png`}>
+      <source src={`${UPLOADS}/2023/06/top_movie.mov`} type="video/mp4" />
+    </video>
+    <a class="p-hero__arrow" href="#intro" aria-label="下へ"></a>
+  </div>
+
+  <section class="p-index-intro" id="intro">
+    <div class="p-index-intro__text l-inner">
+      <h2 class="p-index-intro__title">大切な人の<br />幸せを祈る場所</h2>
+      <p class="p-index-intro__desc">日本人が古来より大切にしてきた家族。<br />高嶺神社は、<br />『須佐之男命（スサノオノミコト）』と<br />そのご家族を祀る珍しい神社です。<br />千年以上前から、大切な人を想う神聖な場所として<br />多くの人々に親しまれてきました。<br />この神聖な地で、あなた自身と、<br />あなたの大切な人の幸せを祈りませんか。<br /><br />『家庭円満』のほか、厄除けや五穀豊穣、<br />縁結びのご利益をいただけます。</p>
+    </div>
+    <div class="p-index-intro__images l-inner">
+      {['contents_01', 'contents_02', 'contents_03'].map((name) => (
+        <div><img src={`${UPLOADS}/2023/06/${name}.png`} alt="" loading="lazy" width="400" height="300" /></div>
+      ))}
+    </div>
+    <p class="p-index-button"><a class="p-btn" href="/about/">高嶺神社について</a></p>
+  </section>
+
+  <section class="p-index-section p-index-section--gray">
+    <div class="l-inner">
+      <Headline>お知らせ</Headline>
+      <NewsList items={news.slice(0, 6)} />
+      <p class="p-index-button"><a class="p-btn" href="/news/">お知らせ一覧</a></p>
+    </div>
+  </section>
+
+  <section class="p-index-section">
+    <div class="l-inner">
+      <Headline>祭典・行事のご案内</Headline>
+      <EventList items={events.slice(0, 6)} />
+      <p class="p-index-button"><a class="p-btn" href="/event/">祭典・行事についてはこちら</a></p>
+    </div>
+  </section>
+
+  <section class="p-index-prayer">
+    <video class="p-index-prayer__video" autoplay loop muted playsinline>
+      <source src={`${UPLOADS}/2023/06/contents_movie.mov`} type="video/mp4" />
+    </video>
+    <div class="p-index-prayer__inner">
+      <h2 class="p-index-prayer__title">人生の節目で<br />平穏を祈る</h2>
+      <p><a class="p-btn p-btn--vertical" href="/prayer/">ご祈願・ご祈祷</a></p>
+    </div>
+  </section>
+
+  <section class="p-index-section">
+    <div class="l-inner">
+      <Headline>ブログ</Headline>
+      <BlogList items={blog.slice(0, 4)} />
+      <p class="p-index-button"><a class="p-btn" href="/blog/">ブログ一覧</a></p>
+    </div>
+  </section>
+</Base>

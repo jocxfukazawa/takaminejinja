@@ -1,0 +1,103 @@
+---
+import FixedPage from '../layouts/FixedPage.astro';
+
+// Turnstile のサイトキー（未設定時は Cloudflare 公式のテスト用キー＝常に成功）
+const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x00000000000000000000AA';
+---
+<FixedPage slug="contact" narrow>
+  <Fragment slot="head">
+    <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+  </Fragment>
+
+  <form class="p-contact-form" id="js-contact-form" action="/api/contact" method="post" novalidate>
+      <div class="p-contact-form__row">
+        <div class="p-contact-form__label"><label for="your-name">お名前</label><span class="p-required">必須</span></div>
+        <div class="p-contact-form__field"><input id="your-name" name="your-name" type="text" maxlength="400" required autocomplete="name" /></div>
+      </div>
+      <div class="p-contact-form__row">
+        <div class="p-contact-form__label"><label for="kana-name">ふりがな</label><span class="p-required">必須</span></div>
+        <div class="p-contact-form__field"><input id="kana-name" name="kana-name" type="text" maxlength="400" required /></div>
+      </div>
+      <div class="p-contact-form__row">
+        <div class="p-contact-form__label"><label for="your-email">メールアドレス</label><span class="p-required">必須</span></div>
+        <div class="p-contact-form__field"><input id="your-email" name="your-email" type="email" maxlength="400" required autocomplete="email" /></div>
+      </div>
+      <div class="p-contact-form__row">
+        <div class="p-contact-form__label"><label for="address">ご住所</label></div>
+        <div class="p-contact-form__field"><input id="address" name="address" type="text" maxlength="400" autocomplete="street-address" /></div>
+      </div>
+      <div class="p-contact-form__row">
+        <div class="p-contact-form__label"><label for="tel">電話番号</label></div>
+        <div class="p-contact-form__field"><input id="tel" name="tel" type="tel" maxlength="400" autocomplete="tel" /></div>
+      </div>
+      <div class="p-contact-form__row">
+        <div class="p-contact-form__label"><label for="subject">件名</label><span class="p-required">必須</span></div>
+        <div class="p-contact-form__field"><input id="subject" name="subject" type="text" maxlength="400" required /></div>
+      </div>
+      <div class="p-contact-form__row">
+        <div class="p-contact-form__label" id="goshuin-label">御朱印・御守りの予約</div>
+        <div class="p-contact-form__field p-contact-form__checks" role="group" aria-labelledby="goshuin-label">
+          <label><input type="checkbox" name="goshuin-amulet" value="御朱印の予約" /> 御朱印の予約</label>
+          <label><input type="checkbox" name="goshuin-amulet" value="御守り等の予約" /> 御守り等の予約</label>
+        </div>
+      </div>
+      <div class="p-contact-form__row">
+        <div class="p-contact-form__label"><label for="your-message">お問い合わせ内容</label><span class="p-required">必須</span></div>
+        <div class="p-contact-form__field"><textarea id="your-message" name="your-message" rows="10" maxlength="2000" required></textarea></div>
+      </div>
+    <!-- スパム対策（人には見えない項目） -->
+    <div class="u-visually-hidden" aria-hidden="true">
+      <label>空欄のままにしてください <input type="text" name="website" tabindex="-1" autocomplete="off" /></label>
+    </div>
+    <div class="cf-turnstile" data-sitekey={siteKey} data-language="ja"></div>
+    <p class="p-contact-form__note">※ ボタンを押すと送信されます。内容をご確認ください。</p>
+    <p class="p-contact-form__error" id="js-form-error" role="alert" hidden></p>
+    <p class="p-contact-form__submit"><button type="submit" class="p-btn">内容を確定して送信する</button></p>
+  </form>
+</FixedPage>
+
+<script>
+  const form = document.getElementById('js-contact-form') as HTMLFormElement;
+  const error = document.getElementById('js-form-error')!;
+  const button = form.querySelector('button[type=submit]') as HTMLButtonElement;
+
+  const showError = (message: string) => {
+    error.textContent = message;
+    error.hidden = false;
+    error.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    error.hidden = true;
+    form.querySelectorAll('.is-invalid').forEach((el) => el.classList.remove('is-invalid'));
+
+    const invalid = [...form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('[required]')].filter(
+      (el) => !el.value.trim() || !el.checkValidity(),
+    );
+    if (invalid.length) {
+      invalid.forEach((el) => el.classList.add('is-invalid'));
+      invalid[0].focus();
+      showError('入力内容に問題があります。必須項目とメールアドレスの形式をご確認ください。');
+      return;
+    }
+
+    button.disabled = true;
+    button.textContent = '送信中…';
+    try {
+      const res = await fetch(form.action, { method: 'POST', body: new FormData(form) });
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (res.ok && data.ok) {
+        window.location.href = '/thanks/';
+        return;
+      }
+      showError(data.error || '送信に失敗しました。時間をおいて再度お試しいただくか、お電話でお問い合わせください。');
+    } catch {
+      showError('通信エラーが発生しました。時間をおいて再度お試しください。');
+    }
+    button.disabled = false;
+    button.textContent = '内容を確定して送信する';
+    // Turnstile のトークンは1回限りなので再発行する
+    (window as unknown as { turnstile?: { reset: () => void } }).turnstile?.reset();
+  });
+</script>

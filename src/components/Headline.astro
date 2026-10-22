@@ -1,0 +1,11 @@
+---
+import { ICON } from '../data/site';
+
+interface Props {
+  tag?: 'h1' | 'h2';
+  class?: string;
+}
+const { tag: Tag = 'h2', class: className = 'p-headline' } = Astro.props;
+---
+<p class="c-logo--element"><img src={ICON} alt="" width="36" height="36" /></p>
+<Tag class={className}><slot /></Tag>
