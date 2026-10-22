@@ -38,7 +38,7 @@ import { UPLOADS, news, events, blog } from '../data/site';
   <section class="p-index-section">
     <div class="l-inner">
       <Headline>祭典・行事のご案内</Headline>
-      <EventList items={events.slice(0, 6)} />
+      <EventList items={events} limit={6} />
       <p class="p-index-button"><a class="p-btn" href="/event/">祭典・行事についてはこちら</a></p>
     </div>
   </section>

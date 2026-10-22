@@ -2,6 +2,7 @@ import pagesJson from './pages.json';
 import newsJson from './news.json';
 import eventsJson from './events.json';
 import blogJson from './blog.json';
+import type { Schedule } from '../lib/eventOrder';
 
 export const SITE_NAME = '【幸せを運ぶ宮】高嶺神社';
 export const SITE_DESCRIPTION = '高嶺神社は、『家庭円満』のほか、厄除けや五穀豊穣、縁結びのご利益をいただけます。';
@@ -62,6 +63,7 @@ export interface NewsEntry extends Entry {
 export interface EventEntry extends Entry {
   listImg: string | null;
   dateText: string;
+  schedule: Schedule;
 }
 
 export interface BlogEntry extends Entry {

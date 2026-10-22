@@ -48,6 +48,16 @@ Node.js 22 以上が必要です。
 }
 ```
 
+祭典・行事（`events.json`）は、`schedule` に毎年の開催日を書くと、**次に行うものから順**に自動で並びます（日本時間の今日を基準に、ブラウザでも並べ直します）。
+
+```json
+"schedule": { "month": 4, "day": 12 }                   // 4月12日
+"schedule": { "month": 1, "day": 10, "endDay": 15 }     // 1月10日〜15日（15日を過ぎるまで先頭に残る）
+"schedule": { "month": 10, "nth": 2, "weekday": 0 }     // 10月の第2日曜日（weekday: 0=日〜6=土）
+```
+
+画面に出る日付の文言は `dateText` です。開催日が変わったら `dateText` と `schedule` の両方を直してください。
+
 GitHub にプッシュすると、Cloudflare Pages が自動で公開します（1〜2分）。
 
 ## Cloudflare Pages での公開手順

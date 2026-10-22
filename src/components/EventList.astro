@@ -1,14 +1,19 @@
 ---
 import type { EventEntry } from '../data/site';
+import { orderBySchedule } from '../lib/eventOrder';
 
 interface Props {
   items: EventEntry[];
+  /** 表示する件数（省略時はすべて） */
+  limit?: number;
 }
-const { items } = Astro.props;
+const { items, limit } = Astro.props;
+// ビルド時点の日付で並べておき、ブラウザでも今日の日付で並べ直す（下の script）
+const ordered = orderBySchedule(items, (e) => e.schedule);
 ---
-<ul class="p-event-list">
-  {items.map((e) => (
-    <li>
+<ul class="p-event-list" data-limit={limit}>
+  {ordered.map((e, i) => (
+    <li data-schedule={JSON.stringify(e.schedule)} data-order={items.indexOf(e)} hidden={limit !== undefined && i >= limit}>
       <a class="p-event-list__link p-hover-effect" href={`/event/${e.slug}/`}>
         <div class="p-event-list__img">{e.listImg && <img src={e.listImg} alt="" loading="lazy" />}</div>
         <div class="p-event-list__content">
@@ -19,3 +24,18 @@ const { items } = Astro.props;
     </li>
   ))}
 </ul>
+
+<script>
+  import { orderBySchedule, type Schedule } from '../lib/eventOrder';
+
+  document.querySelectorAll<HTMLUListElement>('.p-event-list').forEach((list) => {
+    const limit = list.dataset.limit ? Number(list.dataset.limit) : Infinity;
+    const items = [...list.querySelectorAll<HTMLLIElement>(':scope > li')].sort(
+      (a, b) => Number(a.dataset.order) - Number(b.dataset.order),
+    );
+    orderBySchedule(items, (li) => JSON.parse(li.dataset.schedule!) as Schedule).forEach((li, i) => {
+      li.hidden = i >= limit;
+      list.appendChild(li);
+    });
+  });
+</script>

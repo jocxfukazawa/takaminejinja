@@ -13,7 +13,7 @@ interface Props {
   entry: EventEntry;
 }
 const { entry } = Astro.props;
-const related = events.filter((e) => e.slug !== entry.slug).slice(0, 4);
+const related = events.filter((e) => e.slug !== entry.slug);
 ---
 <Base title={entry.title} description={entry.description} ogImage={entry.img}>
   <Breadcrumb items={[{ label: '祭典・行事', href: '/event/' }, { label: entry.title }]} />
@@ -28,7 +28,7 @@ const related = events.filter((e) => e.slug !== entry.slug).slice(0, 4);
     </article>
     <section class="p-related">
       <Headline>その他の祭典・行事</Headline>
-      <EventList items={related} />
+      <EventList items={related} limit={4} />
     </section>
   </div>
 </Base>
