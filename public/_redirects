@@ -1,5 +1,8 @@
 # 旧WordPressサイトのURLからの転送
 
+# 削除したお知らせ
+/news/2025_753/     /news/2026_753/  301
+
 # テーマのサンプル・重複ページ（未使用）
 /schedule/*        /event/       301
 /history/*         /about/       301
