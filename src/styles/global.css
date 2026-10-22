@@ -127,17 +127,13 @@ body:not(.is-front) .l-main { padding-top: var(--header-height); }
 }
 .p-logoset__logo img { width: 110px; }
 .p-logoset__desc {
-  display: flex;
-  flex-direction: row-reverse;
-  justify-content: center;
-  gap: 6px;
-  margin-top: 24px;
+  margin-top: 20px;
   font-family: var(--font-mincho);
   font-size: 14px;
-  letter-spacing: .15em;
-  line-height: 1.6;
+  letter-spacing: .1em;
+  line-height: 1.9;
 }
-.p-logoset__desc span { writing-mode: vertical-rl; text-orientation: upright; }
+.p-logoset__desc span { display: block; white-space: nowrap; }
 .p-front-nav {
   position: absolute;
   top: 60px;
@@ -592,6 +588,7 @@ time.p-entry__date { color: var(--color-gray-text); font-size: 12px; }
   .p-hero { margin-top: var(--header-height); height: calc(100vh - var(--header-height)); }
   .p-logoset { top: var(--header-height); left: 50%; transform: translateX(-50%); width: 150px; padding: 26px 0 30px; }
   .p-logoset__logo img { width: 90px; }
+  .p-logoset__desc { margin-top: 14px; font-size: 13px; letter-spacing: .05em; }
 
   .p-page-header { height: 320px; }
   .p-page-header__title { display: none; }
