@@ -222,6 +222,11 @@ body:not(.is-front) .l-main { padding-top: var(--header-height); }
   margin-bottom: 100px;
 }
 .p-index-intro__text > * { writing-mode: vertical-rl; }
+/* 縦書きの段の高さ（＝1行の長さ）は明示する。指定しないと Safari が短く見積もって折り返してしまう。
+   文章を変えたら、一番長い行の文字数 × 1.1em より大きくなっているか確かめる */
+.p-index-intro__title { height: 8em; }
+.p-index-intro__desc { height: 26em; }
+.p-index-prayer__title { height: 7em; }
 .p-index-intro__title {
   font-family: var(--font-mincho);
   font-size: 32px;
@@ -490,7 +495,7 @@ time.p-entry__date { color: var(--color-gray-text); font-size: 12px; }
   font-size: 16px;
   line-height: 2.4;
   letter-spacing: .1em;
-  max-height: 34em;
+  height: 34em;
 }
 .p-about-image { display: block; width: 100%; }
 .p-about__inner { padding: 100px 80px 80px; }
@@ -616,7 +621,7 @@ time.p-entry__date { color: var(--color-gray-text); font-size: 12px; }
     margin-bottom: 40px; text-align: center;
   }
   .p-index-intro__title { writing-mode: vertical-rl; font-size: 24px; height: 7.5em; }
-  .p-index-intro__desc { font-size: 14px; line-height: 2; letter-spacing: 0; }
+  .p-index-intro__desc { height: auto; font-size: 14px; line-height: 2; letter-spacing: 0; }
   .p-index-intro__images { margin-inline: 0; }
   .p-index-section { padding-block: 50px; }
   .p-index-prayer { height: 280px; }
@@ -646,7 +651,7 @@ time.p-entry__date { color: var(--color-gray-text); font-size: 12px; }
   .l-contents:has(.l-primary--boxed) { margin-inline: 0; }
   .l-primary--boxed > .p-block01 { margin-inline: 20px; }
   .p-content__vertical { margin-inline: -10px; }
-  .p-block01__desc--vertical { writing-mode: horizontal-tb; max-height: none; font-size: 14px; line-height: 2; letter-spacing: 0; text-align: center; }
+  .p-block01__desc--vertical { writing-mode: horizontal-tb; height: auto; font-size: 14px; line-height: 2; letter-spacing: 0; text-align: center; }
   .p-about__inner { padding: 40px 20px 0; }
   .p-about-info { margin-bottom: 40px; }
   .p-about-info__col-desc { line-height: 2.3; }
