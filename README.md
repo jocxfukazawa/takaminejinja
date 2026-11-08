@@ -114,3 +114,23 @@ python3 scripts/import_wp.py
 ```
 
 公開中の WordPress から本文と画像を取り込み直します（`src/data/*.json` は上書きされます）。
+
+## ご祈祷の予約フォーム（/reservation/）
+
+送信内容は Airtable の「参拝者管理」base の予約の表に、「予約ステータス = 仮予約」「受付経路 = Webフォーム」で書き込みます。
+受付メール・確定メールは、Airtable の Automations が送ります。
+
+- 30分に1組（9:00〜16:30）。キャンセル以外の予約（電話予約・郵送以外）がある時刻は選べない
+- 翌日から32日後まで。翌日分は前日20時まで（`src/lib/reservation.ts`）
+- 「受付停止日」の表に行を足すと、その日（または時間帯）が選べなくなる
+  - 項目：日付（日付）、開始時刻・終了時刻（文字。例 `10:00`。空なら終日）、理由
+  - 開始時刻〜終了時刻の前まで止まる（10:00〜12:00 なら 10:00〜11:30 の回）
+
+Cloudflare Pages の「設定 → 変数とシークレット」に、お問い合わせフォームの値に加えて登録する値：
+
+| 名前 | 種類 | 値 |
+|---|---|---|
+| `AIRTABLE_TOKEN` | シークレット | 個人用アクセストークン。権限は `data.records:read` と `data.records:write`、対象はこの base だけ |
+| `AIRTABLE_BASE_ID` | テキスト | `appoYCG4NVj42pQ4f` |
+| `AIRTABLE_TABLE` | テキスト | `tbliY7bHIC8bt3ZvW`（予約受付） |
+| `AIRTABLE_CLOSURE_TABLE` | テキスト | `受付停止日` |
