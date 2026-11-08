@@ -561,6 +561,52 @@ time.p-entry__date { color: var(--color-gray-text); font-size: 12px; }
 .p-contact-form__submit { margin-top: 20px; text-align: center; }
 .p-contact-form__submit .p-btn:disabled { opacity: .6; cursor: wait; }
 
+/* ご祈祷の予約フォーム */
+.p-reserve-intro ul { margin: 1em 0; padding-left: 1.4em; list-style: disc; }
+.p-reserve-intro li + li { margin-top: .4em; }
+.p-reserve__heading {
+  margin: 40px 0 0; padding: 0 0 8px; border-bottom: 1px solid var(--color-border);
+  font-family: var(--font-mincho); font-size: 19px; font-weight: 600;
+}
+.p-reserve > .p-reserve__heading:first-child { margin-top: 0; }
+.p-reserve__help { margin-top: 6px; color: #666; font-size: 13px; line-height: 1.8; }
+.p-reserve > div > .p-reserve__help { margin-top: 12px; }
+.p-contact-form select, .p-contact-form input[type=date] {
+  width: 100%; max-width: 360px; padding: 8px 12px; border: 1px solid transparent; border-radius: 0; background: #eee;
+  font: inherit; font-size: 16px; line-height: 1.6; color: inherit; -webkit-appearance: none; appearance: none;
+}
+.p-contact-form select {
+  padding-right: 36px;
+  background: #eee url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23555' stroke-width='1.6'/%3E%3C/svg%3E") right 12px center / 12px no-repeat;
+}
+.p-contact-form :is(select, input[type=date]):focus { outline: none; border-color: #999; }
+.p-contact-form select:disabled { color: #888; }
+.p-reserve__short { max-width: 240px; }
+.p-reserve__pair { display: flex; gap: 12px; }
+.p-reserve__pair label { flex: 1; display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.p-reserve__pair label span { flex: none; min-width: 2em; }
+.p-reserve__choices label { display: block; padding: 4px 0 4px 4px; font-size: 15px; cursor: pointer; }
+.p-reserve__choices--inline { display: flex; flex-wrap: wrap; gap: 0 24px; }
+.p-reserve__choices input { margin-right: 6px; accent-color: var(--color-red); }
+.p-reserve__times { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; max-width: 480px; padding: 4px; border: 1px solid transparent; }
+.p-reserve__times .p-reserve__help { grid-column: 1 / -1; margin: 0; }
+.p-reserve__time input { position: absolute; opacity: 0; pointer-events: none; }
+.p-reserve__time span {
+  display: block; padding: 8px 0; border: 1px solid #ccc; background: #fff; text-align: center; font-size: 15px; cursor: pointer;
+}
+.p-reserve__time input:checked + span { border-color: var(--color-red); background: var(--color-red); color: #fff; }
+.p-reserve__time input:focus-visible + span { outline: 2px solid var(--color-red); outline-offset: 2px; }
+.p-reserve__time input:disabled + span { border-color: #e5e5e5; background: #f3f3f3; color: #bbb; text-decoration: line-through; cursor: not-allowed; }
+.p-contact-form :is(input, textarea, select).is-invalid { border-color: var(--color-red); background-color: #fff2f2; }
+.p-contact-form select.is-invalid {
+  background: #fff2f2 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23555' stroke-width='1.6'/%3E%3C/svg%3E") right 12px center / 12px no-repeat;
+}
+.p-contact-form .p-contact-form__field.is-invalid, .p-reserve__times.is-invalid { border: 1px solid var(--color-red); background: #fff2f2; }
+@media (max-width: 767px) {
+  .p-reserve__times { grid-template-columns: repeat(3, 1fr); }
+  .p-reserve__pair { flex-direction: column; gap: 8px; }
+}
+
 /* ───────── タブレット・スマートフォン ───────── */
 @media (max-width: 1199px) {
   .p-global-nav ul { gap: 0 14px; }

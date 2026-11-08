@@ -25,7 +25,7 @@
     "description": "高嶺神社では、WEBからでもご祈祷の予約を承っております。",
     "headerTitle": "ご祈祷の予約",
     "headerImg": "/wp-content/uploads/2023/08/reservation_mv.png",
-    "html": "<div class=\"p-entry__body p-entry__body--page\">\n<div class=\"googleform-wrapper\"><iframe frameborder=\"0\" loading=\"lazy\" marginheight=\"0\" marginwidth=\"0\" src=\"https://docs.google.com/forms/d/e/1FAIpQLSfNnPDENu0bD-8kYr78VR8Vs5MvEMSQrUW1Dm9iJiOcPl2wTQ/viewform?embedded=true\">読み込んでいます…</iframe></div>\n</div>"
+    "html": "<div class=\"p-entry__body p-reserve-intro\">\n<p>ご祈祷は予約制となっておりますので、下のフォームまたはお電話でご予約をお願いいたします（予約不要の日を除く）。</p>\n<ul>\n<li><strong>フォームからの送信の時点では仮予約です。</strong>当神社で確認のうえ、ご予約確定のメールをお送りします。確定のメールが届くまでは仮予約のままですので、ご注意ください。</li>\n<li>受付：翌日から承ります。翌日のご予約は、前日の午後8時までにお願いいたします。</li>\n<li>キャンセル：直前までキャンセルできます。キャンセルされる場合は、メールまたはお電話でご連絡ください。</li>\n<li>さまざまな事情でご参拝が難しい場合は、郵送でのご祈祷も承ります。ご祈祷の後、御札・御守を郵送いたします。</li>\n</ul>\n<p>予約・キャンセルができない場合や、その他のお問い合わせは、TEL. 0791-52-6464（つながらない場合は 0791-52-0666）までお願いいたします。お電話でのご予約も承っております。</p>\n</div>"
   },
   "contact": {
     "title": "お問い合わせ",
@@ -61,5 +61,13 @@
     "headerTitle": "ブログ",
     "headerImg": "/wp-content/uploads/2023/06/blog_mv.png",
     "html": ""
+  },
+  "reservation-thanks": {
+    "title": "ご祈祷の予約（受付）",
+    "description": "ご祈祷の仮予約を受け付けました。",
+    "headerTitle": "ご祈祷の予約",
+    "headerImg": "/wp-content/uploads/2023/08/reservation_mv.png",
+    "narrow": true,
+    "html": "<div class=\"p-entry__body\">\n<strong>ご祈祷の仮予約を受け付けました。</strong><br/>\nご入力いただいたメールアドレスに、受付のメールをお送りしました。<br/>\n当神社で確認のうえ、<strong>改めてご予約確定のメールをお送りします。</strong>確定のメールが届くまでは仮予約ですので、ご注意ください。<br/>\n受付のメールが届かない場合は、迷惑メールのフォルダもご確認ください。それでも見つからない場合は、お電話（0791-52-6464）でご連絡ください。\n</div>"
   }
 }

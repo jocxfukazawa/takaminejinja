@@ -1,4 +1,322 @@
 ---
 import FixedPage from '../layouts/FixedPage.astro';
+import { PRAYERS, PRAYER_OTHER, PHONE } from '../lib/reservation';
+
+// Turnstile のサイトキー（未設定時は Cloudflare 公式のテスト用キー＝常に成功）
+const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x00000000000000000000AA';
 ---
-<FixedPage slug="reservation" />
+<FixedPage slug="reservation" narrow>
+  <Fragment slot="head">
+    <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+  </Fragment>
+
+  <form class="p-contact-form p-reserve" id="js-reserve-form" action="/api/reservation" method="post" novalidate>
+    <h2 class="p-reserve__heading">ご祈願の内容</h2>
+
+    <div class="p-contact-form__row">
+      <div class="p-contact-form__label"><label for="prayer">ご祈願内容</label><span class="p-required">必須</span></div>
+      <div class="p-contact-form__field">
+        <select id="prayer" name="prayer" required>
+          <option value="">選んでください</option>
+          {PRAYERS.map((p) => <option value={p.name} data-extras={p.extras.join(' ')}>{p.name}</option>)}
+          <option value={PRAYER_OTHER} data-extras="">{PRAYER_OTHER}</option>
+        </select>
+        <p class="p-reserve__help">同時に複数のご祈願も可能です。2つ目以降のご祈願内容は、下の「連絡事項」にご記入ください。<br />ご祈祷料は1件につき5千円以上（初宮詣は8千円以上）でお心持ちをお納めいただいております。</p>
+      </div>
+    </div>
+
+    <div class="p-contact-form__row" data-show="other" hidden>
+      <div class="p-contact-form__label"><label for="prayer-other">ご祈願内容（その他）</label><span class="p-required">必須</span></div>
+      <div class="p-contact-form__field"><input id="prayer-other" name="prayer-other" type="text" maxlength="100" /></div>
+    </div>
+
+    <div class="p-contact-form__row" data-show="haraobi" hidden>
+      <div class="p-contact-form__label" id="haraobi-label">腹帯のお祓い<span class="p-required">必須</span></div>
+      <div class="p-contact-form__field p-reserve__choices" role="radiogroup" aria-labelledby="haraobi-label">
+        <label><input type="radio" name="haraobi" value="あり" /> あり</label>
+        <label><input type="radio" name="haraobi" value="なし" /> なし</label>
+        <p class="p-reserve__help">安産祈願と同時に、腹帯（岩田帯）のお祓いができます。腹帯のお祓いを行う場合、初穂料は8千円以上でお心持ちをお納めいただいております。</p>
+      </div>
+    </div>
+
+    <div class="p-contact-form__row" data-show="siblings" hidden>
+      <div class="p-contact-form__label"><label for="siblings">兄弟姉妹について</label></div>
+      <div class="p-contact-form__field">
+        <textarea id="siblings" name="siblings" rows="3" maxlength="1000" placeholder="兄　高嶺　一郎（たかみね　いちろう）2015/11/11"></textarea>
+        <p class="p-reserve__help">七五三詣と一緒に兄弟姉妹のご祈祷を希望される場合は、お名前（ふりがな）と生年月日をご記入ください。</p>
+      </div>
+    </div>
+
+    <div class="p-contact-form__row" data-show="parents" hidden>
+      <div class="p-contact-form__label"><label for="parents">父母のお名前</label><span class="p-required">必須</span></div>
+      <div class="p-contact-form__field">
+        <textarea id="parents" name="parents" rows="3" maxlength="1000" placeholder={'父　高嶺　太郎（たかみね　たろう）\n母　高嶺　花子（たかみね　はなこ）'}></textarea>
+        <p class="p-reserve__help">父母のお名前（ふりがな）を、改行して1人ずつご記入ください。</p>
+      </div>
+    </div>
+
+    <div class="p-contact-form__row" data-show="car" hidden>
+      <div class="p-contact-form__label"><label for="car">車名とナンバー</label><span class="p-required">必須</span></div>
+      <div class="p-contact-form__field">
+        <textarea id="car" name="car" rows="2" maxlength="500" placeholder={'トヨタ　プリウス\n姫路300 あ 11-11'}></textarea>
+      </div>
+    </div>
+
+    <div class="p-contact-form__row">
+      <div class="p-contact-form__label" id="method-label">ご祈祷方法<span class="p-required">必須</span></div>
+      <div class="p-contact-form__field p-reserve__choices" role="radiogroup" aria-labelledby="method-label">
+        <label><input type="radio" name="method" value="来社" checked /> 神社にお越しになる</label>
+        <label><input type="radio" name="method" value="郵送" /> 郵送（御札・御守をお送りします）</label>
+        <p class="p-reserve__help">ご参拝が叶わない場合は、郵送でのご祈祷も承っております。ご祈祷の後、御札・御守を郵送いたします。</p>
+      </div>
+    </div>
+
+    <div data-show="visit">
+      <h2 class="p-reserve__heading">ご希望の日時</h2>
+      <p class="p-reserve__help">30分ごとに1組ずつ承っております。選べない日時は、予約で埋まっているか、受付をしていない日時です。</p>
+      <div class="p-contact-form__row">
+        <div class="p-contact-form__label"><label for="date">日にち</label><span class="p-required">必須</span></div>
+        <div class="p-contact-form__field">
+          <select id="date" name="date" disabled>
+            <option value="">読み込んでいます…</option>
+          </select>
+        </div>
+      </div>
+      <div class="p-contact-form__row">
+        <div class="p-contact-form__label" id="time-label">時刻<span class="p-required">必須</span></div>
+        <div class="p-contact-form__field">
+          <div class="p-reserve__times" id="js-times" role="radiogroup" aria-labelledby="time-label">
+            <p class="p-reserve__help">先に日にちを選んでください。</p>
+          </div>
+        </div>
+      </div>
+      <p class="p-contact-form__error" id="js-slots-error" role="alert" hidden>空いている日時を読み込めませんでした。時間をおいてページを再読み込みしていただくか、お電話（{PHONE}）でご予約ください。</p>
+    </div>
+
+    <h2 class="p-reserve__heading">ご祈祷を受けられる方</h2>
+
+    <div class="p-contact-form__row">
+      <div class="p-contact-form__label">お名前<span class="p-required">必須</span></div>
+      <div class="p-contact-form__field p-reserve__pair">
+        <label><span>姓</span><input name="sei" type="text" maxlength="50" required autocomplete="family-name" /></label>
+        <label><span>名</span><input name="mei" type="text" maxlength="50" required autocomplete="given-name" /></label>
+      </div>
+    </div>
+    <div class="p-contact-form__row">
+      <div class="p-contact-form__label">ふりがな<span class="p-required">必須</span></div>
+      <div class="p-contact-form__field p-reserve__pair">
+        <label><span>せい</span><input name="sei-kana" type="text" maxlength="50" required /></label>
+        <label><span>めい</span><input name="mei-kana" type="text" maxlength="50" required /></label>
+      </div>
+    </div>
+    <div class="p-contact-form__row">
+      <div class="p-contact-form__label"><label for="special">お名前の特殊文字</label></div>
+      <div class="p-contact-form__field">
+        <input id="special" name="special" type="text" maxlength="200" />
+        <p class="p-reserve__help">お名前に特殊な文字（旧字体など）がある場合は、文字についての説明をご記入ください。</p>
+      </div>
+    </div>
+    <div class="p-contact-form__row">
+      <div class="p-contact-form__label" id="gender-label">性別<span class="p-required">必須</span></div>
+      <div class="p-contact-form__field p-reserve__choices p-reserve__choices--inline" role="radiogroup" aria-labelledby="gender-label">
+        <label><input type="radio" name="gender" value="男" required /> 男</label>
+        <label><input type="radio" name="gender" value="女" /> 女</label>
+        <label><input type="radio" name="gender" value="回答しない" /> 回答しない</label>
+      </div>
+    </div>
+    <div class="p-contact-form__row">
+      <div class="p-contact-form__label"><label for="birthday">生年月日</label><span class="p-required">必須</span></div>
+      <div class="p-contact-form__field"><input id="birthday" name="birthday" type="date" min="1900-01-01" required autocomplete="bday" /></div>
+    </div>
+
+    <h2 class="p-reserve__heading">ご連絡先</h2>
+
+    <div class="p-contact-form__row">
+      <div class="p-contact-form__label"><label for="zip">郵便番号</label></div>
+      <div class="p-contact-form__field"><input id="zip" name="zip" type="text" inputmode="numeric" maxlength="8" placeholder="6781234" autocomplete="postal-code" class="p-reserve__short" /></div>
+    </div>
+    <div class="p-contact-form__row">
+      <div class="p-contact-form__label"><label for="address">住所</label><span class="p-required">必須</span></div>
+      <div class="p-contact-form__field"><input id="address" name="address" type="text" maxlength="300" required autocomplete="street-address" /></div>
+    </div>
+    <div class="p-contact-form__row">
+      <div class="p-contact-form__label"><label for="building">建物名等</label></div>
+      <div class="p-contact-form__field"><input id="building" name="building" type="text" maxlength="200" /></div>
+    </div>
+    <div class="p-contact-form__row">
+      <div class="p-contact-form__label"><label for="tel">電話番号</label><span class="p-required">必須</span></div>
+      <div class="p-contact-form__field">
+        <input id="tel" name="tel" type="tel" maxlength="15" required autocomplete="tel" class="p-reserve__short" />
+        <p class="p-reserve__help">当日に連絡のつく電話番号をご記入ください。</p>
+      </div>
+    </div>
+    <div class="p-contact-form__row">
+      <div class="p-contact-form__label"><label for="email">メールアドレス</label><span class="p-required">必須</span></div>
+      <div class="p-contact-form__field"><input id="email" name="email" type="email" maxlength="200" required autocomplete="email" /></div>
+    </div>
+
+    <h2 class="p-reserve__heading">初穂料・連絡事項</h2>
+
+    <div class="p-contact-form__row">
+      <div class="p-contact-form__label" id="payment-label">初穂料の納め方<span class="p-required">必須</span></div>
+      <div class="p-contact-form__field p-reserve__choices" role="radiogroup" aria-labelledby="payment-label">
+        <label><input type="radio" name="payment" value="当日ご社頭でお納め" required /> 当日ご社頭でお納め</label>
+        <label><input type="radio" name="payment" value="事前にクレジットカードでお納め" /> 事前にクレジットカードでお納め</label>
+        <p class="p-reserve__help">クレジットカードの場合は、予約確定後に納め方をメールでお知らせいたします。</p>
+      </div>
+    </div>
+    <div class="p-contact-form__row">
+      <div class="p-contact-form__label"><label for="message">連絡事項</label></div>
+      <div class="p-contact-form__field">
+        <textarea id="message" name="message" rows="5" maxlength="2000"></textarea>
+        <p class="p-reserve__help">一緒にお祓いを希望されるご家族がいる場合は、お名前（ふりがな）・ご祈願内容・生年月日をご記入ください。</p>
+      </div>
+    </div>
+
+    <!-- スパム対策（人には見えない項目） -->
+    <div class="u-visually-hidden" aria-hidden="true">
+      <label>空欄のままにしてください <input type="text" name="website" tabindex="-1" autocomplete="off" /></label>
+    </div>
+    <div class="cf-turnstile" data-sitekey={siteKey} data-language="ja"></div>
+    <p class="p-contact-form__note">※ 送信の時点では仮予約です。神社で確認のうえ、ご予約確定のメールをお送りします。<br />※ 送信後、ご入力のメールアドレスに受付のメールが届きます。届かない場合は、迷惑メールのフォルダもご確認ください。</p>
+    <p class="p-contact-form__error" id="js-form-error" role="alert" hidden></p>
+    <p class="p-contact-form__submit"><button type="submit" class="p-btn">仮予約を送信する</button></p>
+  </form>
+</FixedPage>
+
+<script>
+  import { PRAYER_OTHER } from '../lib/reservation';
+
+  type Day = { date: string; label: string; slots: { time: string; available: boolean }[] };
+
+  const form = document.getElementById('js-reserve-form') as HTMLFormElement;
+  const prayer = form.querySelector<HTMLSelectElement>('#prayer')!;
+  const dateSelect = form.querySelector<HTMLSelectElement>('#date')!;
+  const times = document.getElementById('js-times')!;
+  const slotsError = document.getElementById('js-slots-error')!;
+  const error = document.getElementById('js-form-error')!;
+  const button = form.querySelector('button[type=submit]') as HTMLButtonElement;
+  let days: Day[] = [];
+
+  /** 選ばれているご祈祷方法 */
+  const methodValue = () => form.querySelector<HTMLInputElement>('input[name=method]:checked')?.value ?? '';
+
+  /** 選んだ内容に合わせて、追加の欄を出し入れする */
+  const toggle = () => {
+    const option = prayer.selectedOptions[0];
+    const show = new Set((option?.dataset.extras ?? '').split(' ').filter(Boolean));
+    if (prayer.value === PRAYER_OTHER) show.add('other');
+    if (methodValue() === '来社') show.add('visit');
+    form.querySelectorAll<HTMLElement>('[data-show]').forEach((el) => {
+      el.hidden = !show.has(el.dataset.show!);
+    });
+  };
+
+  const renderTimes = () => {
+    const day = days.find((d) => d.date === dateSelect.value);
+    times.innerHTML = '';
+    if (!day) {
+      times.innerHTML = '<p class="p-reserve__help">先に日にちを選んでください。</p>';
+      return;
+    }
+    for (const s of day.slots) {
+      const label = document.createElement('label');
+      label.className = 'p-reserve__time';
+      label.innerHTML = `<input type="radio" name="time" value="${s.time}" ${s.available ? '' : 'disabled'} /><span>${s.time.replace(/^0/, '')}</span>`;
+      if (!s.available) label.title = '受付できません';
+      times.appendChild(label);
+    }
+  };
+
+  const loadSlots = async () => {
+    const keep = dateSelect.value;
+    dateSelect.disabled = true;
+    slotsError.hidden = true;
+    try {
+      const res = await fetch('/api/reservation/slots', { cache: 'no-store' });
+      const data = (await res.json()) as { ok: boolean; dates?: Day[] };
+      if (!res.ok || !data.ok || !data.dates) throw new Error(String(res.status));
+      days = data.dates;
+      dateSelect.innerHTML = '<option value="">選んでください</option>';
+      for (const d of days) {
+        const free = d.slots.some((s) => s.available);
+        const opt = new Option(free ? d.label : `${d.label}　受付できません`, d.date);
+        opt.disabled = !free;
+        dateSelect.add(opt);
+      }
+      if (days.some((d) => d.date === keep && d.slots.some((s) => s.available))) dateSelect.value = keep;
+      dateSelect.disabled = false;
+    } catch {
+      days = [];
+      dateSelect.innerHTML = '<option value="">読み込めませんでした</option>';
+      slotsError.hidden = false;
+    }
+    renderTimes();
+  };
+
+  const showError = (message: string) => {
+    error.textContent = message;
+    error.hidden = false;
+    error.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
+  prayer.addEventListener('change', toggle);
+  form.querySelectorAll('input[name=method]').forEach((el) => el.addEventListener('change', toggle));
+  dateSelect.addEventListener('change', renderTimes);
+  toggle();
+  loadSlots();
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    error.hidden = true;
+    form.querySelectorAll('.is-invalid').forEach((el) => el.classList.remove('is-invalid'));
+
+    // 画面に出ている欄だけを確認する
+    const visible = (el: Element) => !el.closest('[hidden]');
+    const missing: Element[] = [];
+    form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>('input[required], textarea[required], select[required]').forEach((el) => {
+      if (!visible(el)) return;
+      const empty = el instanceof HTMLInputElement && el.type === 'radio'
+        ? !form.querySelector(`input[name="${el.name}"]:checked`)
+        : !el.value.trim() || !el.checkValidity();
+      if (empty) missing.push(el.type === 'radio' ? el.closest('.p-contact-form__field')! : el);
+    });
+    const needs = (name: string, selector: string) => {
+      const el = form.querySelector(`[data-show="${name}"]`)!;
+      if (!el.hidden && !form.querySelector(selector)) missing.push(el.querySelector('.p-contact-form__field') ?? el);
+    };
+    needs('haraobi', 'input[name=haraobi]:checked');
+    for (const id of ['parents', 'car', 'prayer-other']) {
+      const el = form.querySelector<HTMLInputElement>(`#${id}`)!;
+      if (visible(el) && !el.value.trim()) missing.push(el);
+    }
+    const visit = !form.querySelector<HTMLElement>('[data-show="visit"]')!.hidden;
+    if (visit && !dateSelect.value) missing.push(dateSelect);
+    if (visit && !form.querySelector('input[name=time]:checked')) missing.push(times);
+
+    if (missing.length) {
+      missing.forEach((el) => el.classList.add('is-invalid'));
+      (missing[0] as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
+      showError('入力されていない項目があります。赤い枠の項目をご確認ください。');
+      return;
+    }
+
+    button.disabled = true;
+    button.textContent = '送信中…';
+    try {
+      const res = await fetch(form.action, { method: 'POST', body: new FormData(form) });
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; refresh?: boolean };
+      if (res.ok && data.ok) {
+        window.location.href = '/reservation/thanks/';
+        return;
+      }
+      if (data.refresh) await loadSlots();
+      showError(data.error || '送信に失敗しました。時間をおいて再度お試しいただくか、お電話でご予約ください。');
+    } catch {
+      showError('通信エラーが発生しました。時間をおいて再度お試しください。');
+    }
+    button.disabled = false;
+    button.textContent = '仮予約を送信する';
+    (window as unknown as { turnstile?: { reset: () => void } }).turnstile?.reset();
+  });
+</script>
