@@ -39,6 +39,8 @@ const FORMS = {
       { name: 'status', label: 'ご職業', required: true, options: MIKO_GRADES },
       { name: 'school', label: '学校名・学年', max: 100 },
       { name: 'consent', label: '保護者の同意・学校の許可', options: ['保護者の同意と学校の許可を得ています（または得る予定です）'] },
+      { name: 'workplace', label: 'お勤め先', max: 100 },
+      { name: 'work-permission', label: '勤務先の許可', options: ['勤務先の許可を得ています（または得る予定です）'] },
       { name: 'your-email', label: 'メールアドレス', required: true },
       { name: 'tel', label: '電話番号', required: true },
       { name: 'address', label: 'ご住所', required: true },
@@ -157,9 +159,13 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (type === 'miko' && values.status === '高校生' && !values.consent) {
     return json({ ok: false, error: '高校生の方は、保護者の方の同意と学校の許可が必要です。' }, 400);
   }
+  if (type === 'miko' && values.status === '社会人' && (!values.workplace || !values['work-permission'])) {
+    return json({ ok: false, error: 'お勤めの方は、お勤め先のご記入と、勤務先の許可の確認が必要です。' }, 400);
+  }
 
   const summary = def.fields
     .filter((f) => f.name !== 'consent' || values.status === '高校生')
+    .filter((f) => !['workplace', 'work-permission'].includes(f.name) || values.status === '社会人')
     .map((f) => `■${f.label}\n${values[f.name] || '（未入力）'}`)
     .join('\n\n');
 

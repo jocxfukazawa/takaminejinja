@@ -47,6 +47,16 @@ const title = type === 'miko' ? '巫女の登録 応募フォーム' : '舞姫 �
             <label><input type="checkbox" name="consent" value="保護者の同意と学校の許可を得ています（または得る予定です）" /> 保護者の同意と学校の許可を得ています（または得る予定です）</label>
           </div>
         </div>
+        <div class="p-contact-form__row js-work-row" hidden>
+          <div class="p-contact-form__label"><label for="workplace">お勤め先</label><span class="p-required">必須</span></div>
+          <div class="p-contact-form__field"><input id="workplace" name="workplace" type="text" maxlength="100" /></div>
+        </div>
+        <div class="p-contact-form__row js-work-row" hidden>
+          <div class="p-contact-form__label" id="work-permission-label">お勤めの方へ<span class="p-required">必須</span></div>
+          <div class="p-contact-form__field p-contact-form__checks" role="group" aria-labelledby="work-permission-label">
+            <label><input type="checkbox" name="work-permission" value="勤務先の許可を得ています（または得る予定です）" /> 勤務先の許可を得ています（または得る予定です）</label>
+          </div>
+        </div>
       </>
     ) : (
       <>
@@ -159,13 +169,18 @@ const title = type === 'miko' ? '巫女の登録 応募フォーム' : '舞姫 �
   const button = form.querySelector<HTMLButtonElement>('button[type=submit]')!;
   const label = button.textContent;
 
-  // 巫女：高校生を選んだときだけ「保護者の同意・学校の許可」を表示して必須にする
-  const consentRow = form.querySelector<HTMLElement>('.js-consent-row');
+  // 巫女：選んだご職業に応じて追加の項目を表示し、必須にする
+  //   高校生 → 保護者の同意・学校の許可
+  //   社会人 → お勤め先・勤務先の許可
+  const toggle = (selector: string, on: boolean) =>
+    form.querySelectorAll<HTMLElement>(selector).forEach((row) => {
+      row.hidden = !on;
+      row.querySelectorAll('input').forEach((input) => (input.required = on));
+    });
   const syncConsent = () => {
-    if (!consentRow) return;
-    const isHigh = form.querySelector<HTMLInputElement>('input[name=status]:checked')?.value === '高校生';
-    consentRow.hidden = !isHigh;
-    consentRow.querySelector('input')!.required = isHigh;
+    const status = form.querySelector<HTMLInputElement>('input[name=status]:checked')?.value;
+    toggle('.js-consent-row', status === '高校生');
+    toggle('.js-work-row', status === '社会人');
   };
   form.querySelectorAll('input[name=status]').forEach((el) => el.addEventListener('change', syncConsent));
 
