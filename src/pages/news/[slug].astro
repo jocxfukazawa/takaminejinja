@@ -3,6 +3,7 @@ import Base from '../../layouts/Base.astro';
 import Breadcrumb from '../../components/Breadcrumb.astro';
 import Headline from '../../components/Headline.astro';
 import EntryNav from '../../components/EntryNav.astro';
+import ApplyForm from '../../components/ApplyForm.astro';
 import { news, type NewsEntry } from '../../data/site';
 
 export function getStaticPaths() {
@@ -30,6 +31,7 @@ const latest = news.filter((n) => n.slug !== entry.slug).slice(0, 5);
         {entry.img && <figure class="p-entry__img"><img src={entry.img} alt="" /></figure>}
       </header>
       <div class="p-entry__body" set:html={entry.html} />
+      {entry.form && <ApplyForm type={entry.form} />}
       <EntryNav base="/news/" prev={prev} next={next} />
       <section class="p-latest">
         <div class="p-latest__header">

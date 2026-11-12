@@ -561,6 +561,20 @@ time.p-entry__date { color: var(--color-gray-text); font-size: 12px; }
 .p-contact-form__submit { margin-top: 20px; text-align: center; }
 .p-contact-form__submit .p-btn:disabled { opacity: .6; cursor: wait; }
 
+/* 巫女・舞姫の応募フォーム（お知らせ記事内） */
+.p-apply { margin-top: 60px; scroll-margin-top: 100px; }
+.p-apply__title { margin-bottom: 10px; padding: 12px 18px; border-left: 4px solid var(--color-red); background: #f7f2e8; font-size: 20px; font-weight: 600; }
+.p-apply__form { margin-top: 20px; }
+.p-apply__hint { margin: -4px 0 6px; font-size: 13px; color: #666; }
+.p-apply__short input[type=text] { width: 6em; }
+.p-contact-form select { min-width: 12em; padding: 8px 12px; border: 1px solid transparent; border-radius: 0; background: #eee; font: inherit; font-size: 16px; }
+.p-contact-form select.is-invalid { border-color: var(--color-red); background: #fff2f2; }
+.p-contact-form__checks.is-invalid { outline: 1px solid var(--color-red); background: #fff2f2; }
+.p-contact-form__checks input { margin-right: 4px; }
+.p-contact-form__checks label + label { margin-top: 6px; }
+.p-apply__done { margin-top: 20px; padding: 30px; border: 3px solid var(--color-border); line-height: 2; }
+.p-apply__done:focus { outline: none; }
+
 /* ───────── タブレット・スマートフォン ───────── */
 @media (max-width: 1199px) {
   .p-global-nav ul { gap: 0 14px; }
