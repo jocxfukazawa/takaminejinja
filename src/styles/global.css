@@ -561,6 +561,9 @@ time.p-entry__date { color: var(--color-gray-text); font-size: 12px; }
 .p-contact-form__submit { margin-top: 20px; text-align: center; }
 .p-contact-form__submit .p-btn:disabled { opacity: .6; cursor: wait; }
 
+/* hidden を付けた要素は、display の指定があっても必ず隠す */
+[hidden] { display: none !important; }
+
 /* ご祈祷の予約フォーム */
 .p-reserve-intro ul { margin: 1em 0; padding-left: 1.4em; list-style: disc; }
 .p-reserve-intro li + li { margin-top: .4em; }
