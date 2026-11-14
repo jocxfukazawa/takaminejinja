@@ -6,7 +6,7 @@
  * 3. Airtable の予約の表に、ご祈祷を受ける方1人につき1行、「仮予約」として書き込む
  *    一緒に受ける方の行には同じ予約番号を入れ、枠は1組として数える
  *    （受付メールは Airtable の Automations が、代表者の行ができたときに予約につき1通送る。
- *      祈願内容ごとの案内は、代表者の行の「祈願の案内」のリンク先からまとめて差し込む）
+ *      本文には、入力内容をまとめた代表者の行の「予約の詳細」を差し込む）
  *
  * 環境変数は src/lib/airtable.ts と、Turnstile の TURNSTILE_SECRET_KEY。
  */
@@ -216,11 +216,6 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const roster = people
     .map((p, n) => `${n + 1}. ${p.sei}　${p.mei}（${p.seiKana}　${p.meiKana}）　${p.prayerNames.join('・')}`)
     .join('\n');
-  // 参拝者へのメールは予約につき1通（代表者の行から）。含まれる祈願の案内は、
-  // Airtable の「祈願の案内」の表の行をリンクでつなぎ、その案内文をまとめて差し込む。
-  // 「その他」で自由に書かれた祈願は案内の表にないので、リンクしない
-  const guides = [...new Set(people.flatMap((p) => p.prayerNames))].filter((name) => PRAYERS.some((x) => x.name === name));
-
   // 予約全体の初穂料（クレジットカードのお支払いの案内で、予約につき1回だけ伝える）
   const fee = feeSummary(people);
 
@@ -261,7 +256,6 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       受付経路: 'Webフォーム',
       予約番号: reservationNo,
       代表者: n === 0,
-      祈願の案内: n === 0 && guides.length ? guides : '',
       // 2人以上のときだけ、全員の行に一覧を入れる（どの行から送るメールにも差し込めるように）
       同時に受ける方: people.length > 1 ? roster : '',
       予約の初穂料合計: fee.total,
