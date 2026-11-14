@@ -5,7 +5,8 @@
  * 2. 入力内容と、日時が空いているかを確認
  * 3. Airtable の予約の表に、ご祈祷を受ける方1人につき1行、「仮予約」として書き込む
  *    一緒に受ける方の行には同じ予約番号を入れ、枠は1組として数える
- *    （受付メールは Airtable の Automations が、代表者の行ができたときに送る）
+ *    （受付メールは Airtable の Automations が、「案内メール」にチェックのある行ができたときに送る。
+ *      同じ予約の中で、祈願内容ごとに最初の1人の行にだけチェックを入れる）
  *
  * 環境変数は src/lib/airtable.ts と、Turnstile の TURNSTILE_SECRET_KEY。
  */
@@ -196,6 +197,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const roster = people
     .map((p, n) => `${n + 1}. ${p.sei}　${p.mei}（${p.seiKana}　${p.meiKana}）　${p.prayerName}`)
     .join('\n');
+  // 祈願内容ごとの案内メールは、同じ祈願内容の最初の1人の行から送る（ご家族で同じ祈願なら1通）
+  const firstOfPrayer = new Set(people.map((p) => people.findIndex((q) => q.prayerName === p.prayerName)));
   const rows = people.map((p, n) => {
     const fields: Record<string, unknown> = {
       名前: `${p.sei}　${p.mei}`,
@@ -203,6 +206,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       受付経路: 'Webフォーム',
       予約番号: reservationNo,
       代表者: n === 0,
+      案内メール: firstOfPrayer.has(n),
       同時に受ける方: n === 0 ? roster : '',
       [F.date]: visiting ? storedDate(v.date) : '',
       [F.time]: visiting ? v.time : '',
@@ -223,7 +227,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       '車名・ナンバー': p.extras.has('car') ? p.car : '',
       連絡事項: n === 0 ? v.message : '',
     };
-    // 空の項目は送らない（単一選択に空の選択肢ができないように）。代表者のチェックは外したまま送らない
+    // 空の項目は送らない（単一選択に空の選択肢ができないように）。チェックボックスは外したまま送らない
     for (const k of Object.keys(fields)) if (fields[k] === '' || fields[k] === false) delete fields[k];
     return fields;
   });
