@@ -38,8 +38,19 @@ const CANCELLED = 'キャンセル';
 /** この方法の予約は枠を使わない */
 const BY_MAIL = '郵送';
 
-export const isConfigured = (env: AirtableEnv) =>
-  Boolean(env.AIRTABLE_TOKEN && env.AIRTABLE_BASE_ID && env.AIRTABLE_TABLE && env.AIRTABLE_CLOSURE_TABLE);
+const REQUIRED = ['AIRTABLE_TOKEN', 'AIRTABLE_BASE_ID', 'AIRTABLE_TABLE', 'AIRTABLE_CLOSURE_TABLE'] as const;
+
+/** 設定されていない環境変数の名前（値は返さない） */
+export const missingSettings = (env: AirtableEnv) => REQUIRED.filter((k) => !env[k]);
+
+export const isConfigured = (env: AirtableEnv) => missingSettings(env).length === 0;
+
+/** Airtable が返したエラー。type は AUTHENTICATION_REQUIRED、INVALID_FILTER_BY_FORMULA などの種類 */
+export class AirtableError extends Error {
+  constructor(public status: number, public type: string, message: string) {
+    super(`Airtable ${status} ${type}: ${message}`);
+  }
+}
 
 function tableUrl(env: AirtableEnv, table: string) {
   const api = env.AIRTABLE_API_URL || 'https://api.airtable.com/v0';
@@ -51,7 +62,17 @@ async function call(env: AirtableEnv, url: string, init: RequestInit = {}) {
     ...init,
     headers: { Authorization: `Bearer ${env.AIRTABLE_TOKEN}`, 'Content-Type': 'application/json' },
   });
-  if (!res.ok) throw new Error(`Airtable ${res.status}: ${await res.text()}`);
+  if (!res.ok) {
+    const text = await res.text();
+    let type = 'UNKNOWN';
+    let message = text;
+    try {
+      const e = (JSON.parse(text) as { error?: string | { type?: string; message?: string } }).error;
+      type = typeof e === 'string' ? e : e?.type ?? type;
+      message = typeof e === 'string' ? '' : e?.message ?? '';
+    } catch { /* JSON でなければそのまま */ }
+    throw new AirtableError(res.status, type, message);
+  }
   return res.json();
 }
 

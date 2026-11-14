@@ -4,7 +4,7 @@
  */
 
 import { availability } from '../../../src/lib/reservation';
-import { closures, isConfigured, takenSlots, type AirtableEnv } from '../../../src/lib/airtable';
+import { AirtableError, closures, missingSettings, takenSlots, type AirtableEnv } from '../../../src/lib/airtable';
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -13,15 +13,23 @@ const json = (body: unknown, status = 200) =>
   });
 
 export const onRequestGet: PagesFunction<AirtableEnv> = async ({ env }) => {
-  if (!isConfigured(env)) {
-    console.error('reservation/slots: 環境変数が設定されていません');
-    return json({ ok: false }, 500);
+  // うまくいかないときは、原因の種類だけを返す（予約の中身や設定の値は返さない）
+  const missing = missingSettings(env);
+  if (missing.length) {
+    console.error('reservation/slots: 環境変数が設定されていません', missing);
+    return json({ ok: false, reason: 'missing-settings', missing }, 500);
   }
+  let step = '予約の表';
   try {
-    const [taken, closed] = await Promise.all([takenSlots(env), closures(env)]);
+    const taken = await takenSlots(env);
+    step = '受付停止日の表';
+    const closed = await closures(env);
     return json({ ok: true, dates: availability(taken, closed) });
   } catch (e) {
-    console.error('reservation/slots: Airtable の読み込みに失敗', e);
-    return json({ ok: false }, 502);
+    console.error(`reservation/slots: ${step}の読み込みに失敗`, e);
+    const detail = e instanceof AirtableError
+      ? { status: e.status, type: e.type, message: e.message.replace(/^Airtable \d+ \S+: /, '').slice(0, 200) }
+      : { type: 'NETWORK' };
+    return json({ ok: false, reason: 'airtable', step, ...detail }, 502);
   }
 };
