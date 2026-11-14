@@ -175,5 +175,5 @@ export function feeSummary(people: { prayerNames: string[]; haraobi?: string }[]
   const items = [...lines].map(([label, l]) => ({ label: l.count > 1 ? `${label}（${l.count}件）` : label, fee: l.fee }));
   if (children) items.unshift({ label: children > 1 ? `${SHICHIGOSAN}（ごきょうだい${children}名）` : SHICHIGOSAN, fee: shichigosanFee(children) });
   const total = items.reduce((sum, i) => sum + i.fee, 0);
-  return { total, text: [...items.map((i) => `${i.label}　${yen(i.fee)}`), `合計　${yen(total)}`].join('\n') };
+  return { total, text: [...items.map((i) => `${i.label}　${yen(i.fee)}`), `合計　${yen(total)}以上お志`].join('\n') };
 }
