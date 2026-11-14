@@ -222,6 +222,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   // 神社へのお知らせメール用に、予約全体の詳しい内容を1つの文章にまとめる（代表者の行に入れる）。
   // 祈願内容ごとの欄（父母の名前、車など）も、入力のあった方の分をすべて載せる
   const multiple = people.length > 1;
+  // ごきょうだいなどで前の方と同じ父母のお名前なら、繰り返さずに「（○人目と同じ）」と書く
+  const parentsLine = (p: (typeof people)[number], n: number) => {
+    const same = people.findIndex((q, k) => k < n && q.extras.has('parents') && q.parents === p.parents);
+    return same >= 0 ? `父母の名前：（${same + 1}人目と同じ）` : `父母の名前：\n${p.parents}`;
+  };
   const details = [
     ...(visiting ? [`ご祈祷希望日時：${storedDate(v.date)} ${v.time}`] : []),
     ...people.flatMap((p, n) => [
@@ -233,7 +238,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       `生年月日：${p.birthday.replace(/-/g, '/')}（${wareki(p.birthday)}）`,
       `ご祈願内容：${p.prayerNames.join('・')}`,
       ...(p.extras.has('haraobi') ? [`腹帯のお祓い：${p.haraobi}`] : []),
-      ...(p.extras.has('parents') ? [`父母の名前：\n${p.parents}`] : []),
+      ...(p.extras.has('parents') ? [parentsLine(p, n)] : []),
       ...(p.extras.has('car') ? [`車名・ナンバー：\n${p.car}`] : []),
     ]),
     '',

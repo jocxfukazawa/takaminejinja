@@ -115,6 +115,7 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
           <div class="p-contact-form__field">
             <textarea id="p__i__-parents" name="p__i__-parents" rows="3" maxlength="1000" data-required placeholder={'父　高嶺　太郎（たかみね　たろう）\n母　高嶺　花子（たかみね　はなこ）'}></textarea>
             <p class="p-reserve__help">父母のお名前（ふりがな）を、改行して1人ずつご記入ください。</p>
+            <p class="p-reserve__help p-reserve__copied" data-parents-copied hidden>前の方と同じ父母のお名前を入れました。違う場合は書き換えてください。</p>
           </div>
         </div>
         <div class="p-contact-form__row" data-extra="car" hidden>
@@ -237,7 +238,50 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
     card.querySelectorAll<HTMLElement>('[data-extra]').forEach((el) => {
       el.hidden = !show.has(el.dataset.extra!);
     });
+    if (show.has('parents')) copyParents(card);
   };
+
+  // ── 父母のお名前：ごきょうだいなどで2人目以降にも必要なときは、前の方と同じものを入れておく ──
+  const parentsOf = (card: Element) => card.querySelector<HTMLTextAreaElement>('textarea[name$="-parents"]')!;
+
+  /** 欄が空なら、前の方（入力のある最後の方）の父母のお名前を入れる */
+  const copyParents = (card: HTMLElement) => {
+    const field = parentsOf(card);
+    if (field.value.trim()) return;
+    const cards = [...persons.querySelectorAll<HTMLElement>('[data-person]')];
+    const source = cards
+      .slice(0, cards.indexOf(card))
+      .reverse()
+      .map(parentsOf)
+      .find((f) => !f.closest('[hidden]') && f.value.trim());
+    if (!source) return;
+    field.value = source.value;
+    field.dataset.copied = source.value;
+    field.dataset.last = source.value;
+    // 写し元も写したものなら、大元の方を覚えておく（大元を直したら、写した欄がすべてそろうように）
+    field.dataset.from = source.dataset.copied !== undefined && source.dataset.from ? source.dataset.from : source.name;
+    card.querySelector<HTMLElement>('[data-parents-copied]')!.hidden = false;
+  };
+
+  /** 父母のお名前を書き換えたとき：自分で直したら「自動で入れた」印を外し、写した先の欄にも反映する */
+  persons.addEventListener('input', (e) => {
+    const field = e.target as HTMLTextAreaElement;
+    if (!field.matches?.('textarea[name$="-parents"]')) return;
+    const before = field.dataset.last ?? '';
+    if (field.dataset.copied !== undefined && field.value !== field.dataset.copied) {
+      delete field.dataset.copied;
+      delete field.dataset.from;
+      field.closest('[data-person]')!.querySelector<HTMLElement>('[data-parents-copied]')!.hidden = true;
+    }
+    persons.querySelectorAll<HTMLTextAreaElement>('textarea[name$="-parents"]').forEach((other) => {
+      if (other.dataset.from === field.name && other.dataset.copied === before && other.value === before) {
+        other.value = field.value;
+        other.dataset.copied = field.value;
+        other.dataset.last = field.value;
+      }
+    });
+    field.dataset.last = field.value;
+  });
 
   /** 「1人目（代表の方）」「2人目」…の見出しと、追加ボタンの表示を整える */
   const renumber = () => {
