@@ -1,6 +1,6 @@
 ---
 import FixedPage from '../layouts/FixedPage.astro';
-import { PRAYERS, PRAYER_OTHER, PHONE } from '../lib/reservation';
+import { PRAYERS, PRAYER_OTHER, PHONE, MAX_PERSONS } from '../lib/reservation';
 
 // Turnstile のサイトキー（未設定時は Cloudflare 公式のテスト用キー＝常に成功）
 const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x00000000000000000000AA';
@@ -11,56 +11,7 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
   </Fragment>
 
   <form class="p-contact-form p-reserve" id="js-reserve-form" action="/api/reservation" method="post" novalidate>
-    <h2 class="p-reserve__heading">ご祈願の内容</h2>
-
-    <div class="p-contact-form__row">
-      <div class="p-contact-form__label"><label for="prayer">ご祈願内容</label><span class="p-required">必須</span></div>
-      <div class="p-contact-form__field">
-        <select id="prayer" name="prayer" required>
-          <option value="">選んでください</option>
-          {PRAYERS.map((p) => <option value={p.name} data-extras={p.extras.join(' ')}>{p.name}</option>)}
-          <option value={PRAYER_OTHER} data-extras="">{PRAYER_OTHER}</option>
-        </select>
-        <p class="p-reserve__help">同時に複数のご祈願も可能です。2つ目以降のご祈願内容は、下の「連絡事項」にご記入ください。<br />ご祈祷料は1件につき5千円以上（初宮詣は8千円以上）でお心持ちをお納めいただいております。</p>
-      </div>
-    </div>
-
-    <div class="p-contact-form__row" data-show="other" hidden>
-      <div class="p-contact-form__label"><label for="prayer-other">ご祈願内容（その他）</label><span class="p-required">必須</span></div>
-      <div class="p-contact-form__field"><input id="prayer-other" name="prayer-other" type="text" maxlength="100" /></div>
-    </div>
-
-    <div class="p-contact-form__row" data-show="haraobi" hidden>
-      <div class="p-contact-form__label" id="haraobi-label">腹帯のお祓い<span class="p-required">必須</span></div>
-      <div class="p-contact-form__field p-reserve__choices" role="radiogroup" aria-labelledby="haraobi-label">
-        <label><input type="radio" name="haraobi" value="あり" /> あり</label>
-        <label><input type="radio" name="haraobi" value="なし" /> なし</label>
-        <p class="p-reserve__help">安産祈願と同時に、腹帯（岩田帯）のお祓いができます。腹帯のお祓いを行う場合、初穂料は8千円以上でお心持ちをお納めいただいております。</p>
-      </div>
-    </div>
-
-    <div class="p-contact-form__row" data-show="siblings" hidden>
-      <div class="p-contact-form__label"><label for="siblings">兄弟姉妹について</label></div>
-      <div class="p-contact-form__field">
-        <textarea id="siblings" name="siblings" rows="3" maxlength="1000" placeholder="兄　高嶺　一郎（たかみね　いちろう）2015/11/11"></textarea>
-        <p class="p-reserve__help">七五三詣と一緒に兄弟姉妹のご祈祷を希望される場合は、お名前（ふりがな）と生年月日をご記入ください。</p>
-      </div>
-    </div>
-
-    <div class="p-contact-form__row" data-show="parents" hidden>
-      <div class="p-contact-form__label"><label for="parents">父母のお名前</label><span class="p-required">必須</span></div>
-      <div class="p-contact-form__field">
-        <textarea id="parents" name="parents" rows="3" maxlength="1000" placeholder={'父　高嶺　太郎（たかみね　たろう）\n母　高嶺　花子（たかみね　はなこ）'}></textarea>
-        <p class="p-reserve__help">父母のお名前（ふりがな）を、改行して1人ずつご記入ください。</p>
-      </div>
-    </div>
-
-    <div class="p-contact-form__row" data-show="car" hidden>
-      <div class="p-contact-form__label"><label for="car">車名とナンバー</label><span class="p-required">必須</span></div>
-      <div class="p-contact-form__field">
-        <textarea id="car" name="car" rows="2" maxlength="500" placeholder={'トヨタ　プリウス\n姫路300 あ 11-11'}></textarea>
-      </div>
-    </div>
+    <h2 class="p-reserve__heading">ご祈祷の方法と日時</h2>
 
     <div class="p-contact-form__row">
       <div class="p-contact-form__label" id="method-label">ご祈祷方法<span class="p-required">必須</span></div>
@@ -72,8 +23,7 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
     </div>
 
     <div data-show="visit">
-      <h2 class="p-reserve__heading">ご希望の日時</h2>
-      <p class="p-reserve__help">30分ごとに1組ずつ承っております。選べない日時は、予約で埋まっているか、受付をしていない日時です。</p>
+      <p class="p-reserve__help">30分ごとに1組ずつ承っております。ご家族など、ご一緒に受けられる方は1組でご予約いただけます。選べない日時は、予約で埋まっているか、受付をしていない日時です。</p>
       <div class="p-contact-form__row">
         <div class="p-contact-form__label"><label for="date">日にち</label><span class="p-required">必須</span></div>
         <div class="p-contact-form__field">
@@ -94,42 +44,90 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
     </div>
 
     <h2 class="p-reserve__heading">ご祈祷を受けられる方</h2>
+    <p class="p-reserve__help">ご家族などで同じ時刻にご祈祷を受けられる場合は、下の「＋ 一緒にご祈祷を受ける方を追加」から、お一人ずつご入力ください（{MAX_PERSONS}名まで）。ご祈願内容は、お一人ずつお選びいただけます。<br />ご祈祷料は、ご祈願1件につき5千円以上（初宮詣は8千円以上）でお心持ちをお納めいただいております。</p>
 
-    <div class="p-contact-form__row">
-      <div class="p-contact-form__label">お名前<span class="p-required">必須</span></div>
-      <div class="p-contact-form__field p-reserve__pair">
-        <label><span>姓</span><input name="sei" type="text" maxlength="50" required autocomplete="family-name" /></label>
-        <label><span>名</span><input name="mei" type="text" maxlength="50" required autocomplete="given-name" /></label>
-      </div>
-    </div>
-    <div class="p-contact-form__row">
-      <div class="p-contact-form__label">ふりがな<span class="p-required">必須</span></div>
-      <div class="p-contact-form__field p-reserve__pair">
-        <label><span>せい</span><input name="sei-kana" type="text" maxlength="50" required /></label>
-        <label><span>めい</span><input name="mei-kana" type="text" maxlength="50" required /></label>
-      </div>
-    </div>
-    <div class="p-contact-form__row">
-      <div class="p-contact-form__label"><label for="special">お名前の特殊文字</label></div>
-      <div class="p-contact-form__field">
-        <input id="special" name="special" type="text" maxlength="200" />
-        <p class="p-reserve__help">お名前に特殊な文字（旧字体など）がある場合は、文字についての説明をご記入ください。</p>
-      </div>
-    </div>
-    <div class="p-contact-form__row">
-      <div class="p-contact-form__label" id="gender-label">性別<span class="p-required">必須</span></div>
-      <div class="p-contact-form__field p-reserve__choices p-reserve__choices--inline" role="radiogroup" aria-labelledby="gender-label">
-        <label><input type="radio" name="gender" value="男" required /> 男</label>
-        <label><input type="radio" name="gender" value="女" /> 女</label>
-        <label><input type="radio" name="gender" value="回答しない" /> 回答しない</label>
-      </div>
-    </div>
-    <div class="p-contact-form__row">
-      <div class="p-contact-form__label"><label for="birthday">生年月日</label><span class="p-required">必須</span></div>
-      <div class="p-contact-form__field"><input id="birthday" name="birthday" type="date" min="1900-01-01" required autocomplete="bday" /></div>
-    </div>
+    <div id="js-persons"></div>
+    <p class="p-reserve__add-wrap"><button type="button" class="p-reserve__add" id="js-add-person">＋ 一緒にご祈祷を受ける方を追加</button></p>
 
-    <h2 class="p-reserve__heading">ご連絡先</h2>
+    <template id="js-person-template">
+      <fieldset class="p-reserve__person" data-person>
+        <legend class="p-reserve__person-title">
+          <span data-person-label></span>
+          <button type="button" class="p-reserve__remove" data-remove>この方を削除</button>
+        </legend>
+        <div class="p-contact-form__row">
+          <div class="p-contact-form__label">お名前<span class="p-required">必須</span></div>
+          <div class="p-contact-form__field p-reserve__pair">
+            <label><span>姓</span><input name="p__i__-sei" type="text" maxlength="50" required autocomplete="family-name" /></label>
+            <label><span>名</span><input name="p__i__-mei" type="text" maxlength="50" required autocomplete="given-name" /></label>
+          </div>
+        </div>
+        <div class="p-contact-form__row">
+          <div class="p-contact-form__label">ふりがな<span class="p-required">必須</span></div>
+          <div class="p-contact-form__field p-reserve__pair">
+            <label><span>せい</span><input name="p__i__-sei-kana" type="text" maxlength="50" required /></label>
+            <label><span>めい</span><input name="p__i__-mei-kana" type="text" maxlength="50" required /></label>
+          </div>
+        </div>
+        <div class="p-contact-form__row">
+          <div class="p-contact-form__label"><label for="p__i__-special">お名前の特殊文字</label></div>
+          <div class="p-contact-form__field">
+            <input id="p__i__-special" name="p__i__-special" type="text" maxlength="200" />
+            <p class="p-reserve__help">お名前に特殊な文字（旧字体など）がある場合は、文字についての説明をご記入ください。</p>
+          </div>
+        </div>
+        <div class="p-contact-form__row">
+          <div class="p-contact-form__label" id="p__i__-gender-label">性別<span class="p-required">必須</span></div>
+          <div class="p-contact-form__field p-reserve__choices p-reserve__choices--inline" role="radiogroup" aria-labelledby="p__i__-gender-label">
+            <label><input type="radio" name="p__i__-gender" value="男" required /> 男</label>
+            <label><input type="radio" name="p__i__-gender" value="女" /> 女</label>
+            <label><input type="radio" name="p__i__-gender" value="回答しない" /> 回答しない</label>
+          </div>
+        </div>
+        <div class="p-contact-form__row">
+          <div class="p-contact-form__label"><label for="p__i__-birthday">生年月日</label><span class="p-required">必須</span></div>
+          <div class="p-contact-form__field"><input id="p__i__-birthday" name="p__i__-birthday" type="date" min="1900-01-01" required /></div>
+        </div>
+        <div class="p-contact-form__row">
+          <div class="p-contact-form__label"><label for="p__i__-prayer">ご祈願内容</label><span class="p-required">必須</span></div>
+          <div class="p-contact-form__field">
+            <select id="p__i__-prayer" name="p__i__-prayer" required data-prayer>
+              <option value="">選んでください</option>
+              {PRAYERS.map((p) => <option value={p.name} data-extras={p.extras.join(' ')}>{p.name}</option>)}
+              <option value={PRAYER_OTHER} data-extras="other">{PRAYER_OTHER}</option>
+            </select>
+            <p class="p-reserve__help">お一人で複数のご祈願を希望される場合は、2つ目以降を下の「連絡事項」にご記入ください。</p>
+          </div>
+        </div>
+        <div class="p-contact-form__row" data-extra="other" hidden>
+          <div class="p-contact-form__label"><label for="p__i__-prayer-other">ご祈願内容（その他）</label><span class="p-required">必須</span></div>
+          <div class="p-contact-form__field"><input id="p__i__-prayer-other" name="p__i__-prayer-other" type="text" maxlength="100" data-required /></div>
+        </div>
+        <div class="p-contact-form__row" data-extra="haraobi" hidden>
+          <div class="p-contact-form__label" id="p__i__-haraobi-label">腹帯のお祓い<span class="p-required">必須</span></div>
+          <div class="p-contact-form__field p-reserve__choices" role="radiogroup" aria-labelledby="p__i__-haraobi-label">
+            <label><input type="radio" name="p__i__-haraobi" value="あり" data-required /> あり</label>
+            <label><input type="radio" name="p__i__-haraobi" value="なし" /> なし</label>
+            <p class="p-reserve__help">安産祈願と同時に、腹帯（岩田帯）のお祓いができます。腹帯のお祓いを行う場合、初穂料は8千円以上でお心持ちをお納めいただいております。</p>
+          </div>
+        </div>
+        <div class="p-contact-form__row" data-extra="parents" hidden>
+          <div class="p-contact-form__label"><label for="p__i__-parents">父母のお名前</label><span class="p-required">必須</span></div>
+          <div class="p-contact-form__field">
+            <textarea id="p__i__-parents" name="p__i__-parents" rows="3" maxlength="1000" data-required placeholder={'父　高嶺　太郎（たかみね　たろう）\n母　高嶺　花子（たかみね　はなこ）'}></textarea>
+            <p class="p-reserve__help">父母のお名前（ふりがな）を、改行して1人ずつご記入ください。</p>
+          </div>
+        </div>
+        <div class="p-contact-form__row" data-extra="car" hidden>
+          <div class="p-contact-form__label"><label for="p__i__-car">車名とナンバー</label><span class="p-required">必須</span></div>
+          <div class="p-contact-form__field">
+            <textarea id="p__i__-car" name="p__i__-car" rows="2" maxlength="500" data-required placeholder={'トヨタ　プリウス\n姫路300 あ 11-11'}></textarea>
+          </div>
+        </div>
+      </fieldset>
+    </template>
+
+    <h2 class="p-reserve__heading">ご連絡先（代表の方）</h2>
 
     <div class="p-contact-form__row">
       <div class="p-contact-form__label"><label for="zip">郵便番号</label></div>
@@ -173,7 +171,7 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
       <div class="p-contact-form__label"><label for="message">連絡事項</label></div>
       <div class="p-contact-form__field">
         <textarea id="message" name="message" rows="5" maxlength="2000"></textarea>
-        <p class="p-reserve__help">一緒にお祓いを希望されるご家族がいる場合は、お名前（ふりがな）・ご祈願内容・生年月日をご記入ください。</p>
+        <p class="p-reserve__help">お一人で複数のご祈願を希望される場合や、そのほかご要望があればご記入ください。</p>
       </div>
     </div>
 
@@ -189,32 +187,83 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
 </FixedPage>
 
 <script>
-  import { PRAYER_OTHER } from '../lib/reservation';
+  import { MAX_PERSONS } from '../lib/reservation';
 
   type Day = { date: string; label: string; slots: { time: string; available: boolean }[] };
 
   const form = document.getElementById('js-reserve-form') as HTMLFormElement;
-  const prayer = form.querySelector<HTMLSelectElement>('#prayer')!;
   const dateSelect = form.querySelector<HTMLSelectElement>('#date')!;
   const times = document.getElementById('js-times')!;
   const slotsError = document.getElementById('js-slots-error')!;
   const error = document.getElementById('js-form-error')!;
   const button = form.querySelector('button[type=submit]') as HTMLButtonElement;
+  const persons = document.getElementById('js-persons')!;
+  const personTemplate = document.getElementById('js-person-template') as HTMLTemplateElement;
+  const addPerson = document.getElementById('js-add-person') as HTMLButtonElement;
   let days: Day[] = [];
+  /** 欄の名前に付ける番号（削除しても重ならないよう、増やすだけにする） */
+  let nextIndex = 0;
 
   /** 選ばれているご祈祷方法 */
   const methodValue = () => form.querySelector<HTMLInputElement>('input[name=method]:checked')?.value ?? '';
 
-  /** 選んだ内容に合わせて、追加の欄を出し入れする */
-  const toggle = () => {
-    const option = prayer.selectedOptions[0];
-    const show = new Set((option?.dataset.extras ?? '').split(' ').filter(Boolean));
-    if (prayer.value === PRAYER_OTHER) show.add('other');
-    if (methodValue() === '来社') show.add('visit');
-    form.querySelectorAll<HTMLElement>('[data-show]').forEach((el) => {
-      el.hidden = !show.has(el.dataset.show!);
+  /** ご祈祷方法に合わせて、日時の欄を出し入れする */
+  const toggleVisit = () => {
+    form.querySelector<HTMLElement>('[data-show="visit"]')!.hidden = methodValue() !== '来社';
+  };
+
+  /** その方のご祈願内容に合わせて、追加の欄を出し入れする */
+  const toggleExtras = (card: HTMLElement) => {
+    const select = card.querySelector<HTMLSelectElement>('[data-prayer]')!;
+    const show = new Set((select.selectedOptions[0]?.dataset.extras ?? '').split(' ').filter(Boolean));
+    card.querySelectorAll<HTMLElement>('[data-extra]').forEach((el) => {
+      el.hidden = !show.has(el.dataset.extra!);
     });
   };
+
+  /** 「1人目（代表の方）」「2人目」…の見出しと、追加ボタンの表示を整える */
+  const renumber = () => {
+    const cards = [...persons.querySelectorAll<HTMLElement>('[data-person]')];
+    cards.forEach((card, n) => {
+      card.querySelector('[data-person-label]')!.textContent = n === 0 ? '1人目（代表の方）' : `${n + 1}人目`;
+      card.querySelector<HTMLElement>('[data-remove]')!.hidden = n === 0;
+    });
+    addPerson.hidden = cards.length >= MAX_PERSONS;
+  };
+
+  const createPerson = () => {
+    const i = nextIndex++;
+    const html = personTemplate.innerHTML.replace(/__i__/g, String(i));
+    const wrap = document.createElement('div');
+    wrap.innerHTML = html;
+    const card = wrap.firstElementChild as HTMLElement;
+    card.querySelector('[data-prayer]')!.addEventListener('change', () => toggleExtras(card));
+    card.querySelector('[data-remove]')!.addEventListener('click', () => {
+      card.remove();
+      renumber();
+      addPerson.focus();
+    });
+    persons.appendChild(card);
+    toggleExtras(card);
+    renumber();
+    return card;
+  };
+
+  addPerson.addEventListener('click', () => {
+    const first = persons.querySelector<HTMLElement>('[data-person]');
+    const card = createPerson();
+    // ご家族のことが多いので、姓とふりがな（せい）は1人目と同じものを入れておく
+    for (const key of ['sei', 'sei-kana']) {
+      const from = first?.querySelector<HTMLInputElement>(`input[name$="-${key}"]`);
+      const to = card.querySelector<HTMLInputElement>(`input[name$="-${key}"]`)!;
+      if (from?.value) to.value = from.value;
+    }
+    const sei = card.querySelector<HTMLInputElement>('input[name$="-sei"]')!;
+    (sei.value ? card.querySelector<HTMLInputElement>('input[name$="-mei"]')! : sei).focus({ preventScroll: true });
+    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+
+  createPerson();
 
   const renderTimes = () => {
     const day = days.find((d) => d.date === dateSelect.value);
@@ -337,10 +386,9 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
     error.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
 
-  prayer.addEventListener('change', toggle);
-  form.querySelectorAll('input[name=method]').forEach((el) => el.addEventListener('change', toggle));
+  form.querySelectorAll('input[name=method]').forEach((el) => el.addEventListener('change', toggleVisit));
   dateSelect.addEventListener('change', renderTimes);
-  toggle();
+  toggleVisit();
   loadSlots();
 
   form.addEventListener('submit', async (e) => {
@@ -358,15 +406,14 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
         : !el.value.trim() || !el.checkValidity();
       if (empty) missing.push(el.type === 'radio' ? el.closest('.p-contact-form__field')! : el);
     });
-    const needs = (name: string, selector: string) => {
-      const el = form.querySelector(`[data-show="${name}"]`)!;
-      if (!el.hidden && !form.querySelector(selector)) missing.push(el.querySelector('.p-contact-form__field') ?? el);
-    };
-    needs('haraobi', 'input[name=haraobi]:checked');
-    for (const id of ['parents', 'car', 'prayer-other']) {
-      const el = form.querySelector<HTMLInputElement>(`#${id}`)!;
-      if (visible(el) && !el.value.trim()) missing.push(el);
-    }
+    // ご祈願内容によって出る欄（出ているときだけ必須）
+    form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('[data-required]').forEach((el) => {
+      if (!visible(el)) return;
+      const empty = el instanceof HTMLInputElement && el.type === 'radio'
+        ? !form.querySelector(`input[name="${el.name}"]:checked`)
+        : !el.value.trim();
+      if (empty) missing.push(el.type === 'radio' ? el.closest('.p-contact-form__field')! : el);
+    });
     const visit = !form.querySelector<HTMLElement>('[data-show="visit"]')!.hidden;
     if (visit && !dateSelect.value) missing.push(dateSelect);
     if (visit && !form.querySelector('input[name=time]:checked')) missing.push(times);

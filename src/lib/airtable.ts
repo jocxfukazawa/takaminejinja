@@ -150,24 +150,41 @@ export async function closures(env: AirtableEnv): Promise<Closure[]> {
     .filter((c): c is Closure => c.date !== null);
 }
 
-export async function createRecord(env: AirtableEnv, fields: Record<string, unknown>): Promise<AirtableRecord> {
-  const data = (await call(env, tableUrl(env, env.AIRTABLE_TABLE!), {
-    method: 'POST',
-    body: JSON.stringify({ records: [{ fields }], typecast: true }),
-  })) as { records: AirtableRecord[] };
-  return data.records[0];
+/** Airtable は1回に10行までしか作れない・消せないので、10行ずつに分ける */
+const chunks = <T,>(list: T[]) => Array.from({ length: Math.ceil(list.length / 10) }, (_, i) => list.slice(i * 10, i * 10 + 10));
+
+/** 行をまとめて作る。途中で失敗したら、作った分を消してからエラーにする */
+export async function createRecords(env: AirtableEnv, list: Record<string, unknown>[]): Promise<AirtableRecord[]> {
+  const created: AirtableRecord[] = [];
+  try {
+    for (const part of chunks(list)) {
+      const data = (await call(env, tableUrl(env, env.AIRTABLE_TABLE!), {
+        method: 'POST',
+        body: JSON.stringify({ records: part.map((fields) => ({ fields })), typecast: true }),
+      })) as { records: AirtableRecord[] };
+      created.push(...data.records);
+    }
+  } catch (e) {
+    if (created.length) await deleteRecords(env, created.map((r) => r.id)).catch(() => {});
+    throw e;
+  }
+  return created;
 }
 
-export async function deleteRecord(env: AirtableEnv, id: string) {
-  await call(env, `${tableUrl(env, env.AIRTABLE_TABLE!)}/${id}`, { method: 'DELETE' });
+export async function deleteRecords(env: AirtableEnv, ids: string[]) {
+  for (const part of chunks(ids)) {
+    const q = new URLSearchParams();
+    for (const id of part) q.append('records[]', id);
+    await call(env, `${tableUrl(env, env.AIRTABLE_TABLE!)}?${q}`, { method: 'DELETE' });
+  }
 }
 
 /**
- * 書き込んだ予約が、その枠の最初の1件かどうか。
+ * 書き込んだ予約（ご家族など複数の行）が、その枠でいちばん先に入ったものかどうか。
  * ほぼ同時に同じ枠へ申し込みがあったときに、後の方を取り消すために使う。
  */
-export async function isFirstInSlot(env: AirtableEnv, record: AirtableRecord, slot: string) {
+export async function isFirstInSlot(env: AirtableEnv, ids: Set<string>, slot: string) {
   const same = (await activeBookings(env)).filter((r) => r.slot === slot);
   same.sort((a, b) => a.createdTime.localeCompare(b.createdTime) || a.id.localeCompare(b.id));
-  return same.length === 0 || same[0].id === record.id;
+  return same.length === 0 || ids.has(same[0].id);
 }

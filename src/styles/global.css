@@ -582,6 +582,22 @@ time.p-entry__date { color: var(--color-gray-text); font-size: 12px; }
 .p-contact-form :is(select, input[type=date]):focus { outline: none; border-color: #999; }
 .p-contact-form select:disabled { color: #888; }
 .p-reserve__short { max-width: 240px; }
+.p-reserve__person { margin: 24px 0 0; padding: 4px 20px 24px; border: 1px solid var(--color-border); background: #fcfcfc; min-width: 0; }
+.p-reserve__person-title {
+  display: flex; align-items: center; gap: 16px; padding: 0 8px;
+  font-family: var(--font-mincho); font-size: 17px; font-weight: 600;
+}
+.p-reserve__remove {
+  padding: 2px 10px; border: 1px solid #bbb; background: #fff; color: #555;
+  font: inherit; font-family: var(--font-gothic); font-size: 12px; font-weight: 400; cursor: pointer;
+}
+.p-reserve__remove:hover { border-color: var(--color-red); color: var(--color-red); }
+.p-reserve__add-wrap { margin-top: 20px; text-align: center; }
+.p-reserve__add {
+  width: 100%; max-width: 420px; padding: 14px 16px; border: 2px dashed var(--color-red); background: #fff; color: var(--color-red);
+  font: inherit; font-size: 15px; font-weight: 600; cursor: pointer;
+}
+.p-reserve__add:hover { background: #fff6f6; }
 .p-reserve__candidates { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .p-reserve__candidates button {
   padding: 6px 12px; border: 1px solid var(--color-red); background: #fff; color: var(--color-red);
@@ -611,6 +627,7 @@ time.p-entry__date { color: var(--color-gray-text); font-size: 12px; }
 @media (max-width: 767px) {
   .p-reserve__times { grid-template-columns: repeat(3, 1fr); }
   .p-reserve__pair { flex-direction: column; gap: 8px; }
+  .p-reserve__person { padding: 0 12px 16px; }
 }
 
 /* ───────── タブレット・スマートフォン ───────── */

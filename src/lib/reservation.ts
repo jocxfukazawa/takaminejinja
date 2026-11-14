@@ -17,8 +17,11 @@ export const DAYS_AHEAD = 32;
 /** 翌日の予約を受け付ける締め切り（前日のこの時刻まで） */
 export const NEXT_DAY_CUTOFF_HOUR = 20;
 
+/** 1回の予約で一緒にご祈祷を受けられる人数（代表の方を含む） */
+export const MAX_PERSONS = 20;
+
 /** 追加で聞く項目 */
-export type Extra = 'haraobi' | 'parents' | 'siblings' | 'car';
+export type Extra = 'haraobi' | 'parents' | 'car';
 
 /** ご祈願内容と、それぞれで追加で聞く項目 */
 export const PRAYERS: { name: string; extras: Extra[] }[] = [
@@ -33,7 +36,7 @@ export const PRAYERS: { name: string; extras: Extra[] }[] = [
   { name: '合格祈願', extras: [] },
   { name: '安産祈願', extras: ['haraobi'] },
   { name: '病気（怪我）平癒祈願', extras: [] },
-  { name: '七五三詣', extras: ['siblings', 'parents'] },
+  { name: '七五三詣', extras: ['parents'] },
   { name: '事業安全', extras: [] },
 ];
 
