@@ -44,7 +44,7 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
     </div>
 
     <h2 class="p-reserve__heading">ご祈祷を受けられる方</h2>
-    <p class="p-reserve__help">ご家族などで同じ時刻にご祈祷を受けられる場合は、下の「＋ 一緒にご祈祷を受ける方を追加」から、お一人ずつご入力ください（{MAX_PERSONS}名まで）。ご祈願内容は、お一人ずつお選びいただけます。<br />ご祈祷料は、ご祈願1件につき5千円以上（初宮詣は8千円以上）でお心持ちをお納めいただいております。</p>
+    <p class="p-reserve__help">ご家族などで同じ時刻にご祈祷を受けられる場合は、下の「＋ 一緒にご祈祷を受ける方を追加」から、お一人ずつご入力ください（{MAX_PERSONS}名まで）。ご祈願内容は、お一人ずつ（複数でも）お選びいただけます。<br />ご祈祷料は、ご祈願1件につき5千円以上（初宮詣は8千円以上）でお心持ちをお納めいただいております。</p>
 
     <div id="js-persons"></div>
     <p class="p-reserve__add-wrap"><button type="button" class="p-reserve__add" id="js-add-person">＋ 一緒にご祈祷を受ける方を追加</button></p>
@@ -89,14 +89,13 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
           <div class="p-contact-form__field"><input id="p__i__-birthday" name="p__i__-birthday" type="date" min="1900-01-01" required /></div>
         </div>
         <div class="p-contact-form__row">
-          <div class="p-contact-form__label"><label for="p__i__-prayer">ご祈願内容</label><span class="p-required">必須</span></div>
+          <div class="p-contact-form__label" id="p__i__-prayer-label">ご祈願内容<span class="p-required">必須</span></div>
           <div class="p-contact-form__field">
-            <select id="p__i__-prayer" name="p__i__-prayer" required data-prayer>
-              <option value="">選んでください</option>
-              {PRAYERS.map((p) => <option value={p.name} data-extras={p.extras.join(' ')}>{p.name}</option>)}
-              <option value={PRAYER_OTHER} data-extras="other">{PRAYER_OTHER}</option>
-            </select>
-            <p class="p-reserve__help">お一人で複数のご祈願を希望される場合は、2つ目以降を下の「連絡事項」にご記入ください。</p>
+            <div class="p-reserve__prayers" role="group" aria-labelledby="p__i__-prayer-label" data-prayers>
+              {PRAYERS.map((p) => <label><input type="checkbox" name="p__i__-prayer" value={p.name} data-extras={p.extras.join(' ')} /> {p.name}</label>)}
+              <label><input type="checkbox" name="p__i__-prayer" value={PRAYER_OTHER} data-extras="other" /> {PRAYER_OTHER}</label>
+            </div>
+            <p class="p-reserve__help">複数のご祈願をお選びいただけます。</p>
           </div>
         </div>
         <div class="p-contact-form__row" data-extra="other" hidden>
@@ -214,8 +213,9 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
 
   /** その方のご祈願内容に合わせて、追加の欄を出し入れする */
   const toggleExtras = (card: HTMLElement) => {
-    const select = card.querySelector<HTMLSelectElement>('[data-prayer]')!;
-    const show = new Set((select.selectedOptions[0]?.dataset.extras ?? '').split(' ').filter(Boolean));
+    const show = new Set(
+      [...card.querySelectorAll<HTMLInputElement>('[data-prayers] input:checked')].flatMap((el) => (el.dataset.extras ?? '').split(' ')).filter(Boolean),
+    );
     card.querySelectorAll<HTMLElement>('[data-extra]').forEach((el) => {
       el.hidden = !show.has(el.dataset.extra!);
     });
@@ -237,7 +237,10 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
     const wrap = document.createElement('div');
     wrap.innerHTML = html;
     const card = wrap.firstElementChild as HTMLElement;
-    card.querySelector('[data-prayer]')!.addEventListener('change', () => toggleExtras(card));
+    card.querySelector('[data-prayers]')!.addEventListener('change', (e) => {
+      (e.currentTarget as HTMLElement).classList.remove('is-invalid');
+      toggleExtras(card);
+    });
     card.querySelector('[data-remove]')!.addEventListener('click', () => {
       card.remove();
       renumber();
@@ -387,6 +390,12 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
   };
 
   form.querySelectorAll('input[name=method]').forEach((el) => el.addEventListener('change', toggleVisit));
+  // 入力し直した欄は、赤い枠をすぐに外す
+  form.addEventListener('input', (e) => {
+    const el = e.target as HTMLElement;
+    el.classList.remove('is-invalid');
+    el.closest('.p-contact-form__field.is-invalid')?.classList.remove('is-invalid');
+  });
   dateSelect.addEventListener('change', renderTimes);
   toggleVisit();
   loadSlots();
@@ -413,6 +422,10 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
         ? !form.querySelector(`input[name="${el.name}"]:checked`)
         : !el.value.trim();
       if (empty) missing.push(el.type === 'radio' ? el.closest('.p-contact-form__field')! : el);
+    });
+    // ご祈願内容は、お一人につき1つ以上
+    persons.querySelectorAll<HTMLElement>('[data-prayers]').forEach((el) => {
+      if (!el.querySelector('input:checked')) missing.push(el);
     });
     const visit = !form.querySelector<HTMLElement>('[data-show="visit"]')!.hidden;
     if (visit && !dateSelect.value) missing.push(dateSelect);

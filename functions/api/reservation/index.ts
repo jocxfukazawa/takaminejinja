@@ -146,7 +146,6 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       special: clean(get('special')),
       gender: clean(get('gender')),
       birthday: clean(get('birthday')),
-      prayer: clean(get('prayer')),
       prayerOther: clean(get('prayer-other')),
       haraobi: clean(get('haraobi')),
       parents: cleanMultiline(get('parents')),
@@ -154,7 +153,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     };
     const personRequired: [string, string][] = [
       [p.sei, 'お名前（姓）'], [p.mei, 'お名前（名）'], [p.seiKana, 'ふりがな（せい）'], [p.meiKana, 'ふりがな（めい）'],
-      [p.gender, '性別'], [p.birthday, '生年月日'], [p.prayer, 'ご祈願内容'],
+      [p.gender, '性別'], [p.birthday, '生年月日'],
     ];
     for (const [value, label] of personRequired) {
       if (!value) return fail(`「${label}」を入力してください。${who}`);
@@ -164,14 +163,17 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     }
     if (!GENDERS.includes(p.gender)) return fail(`性別を選んでください。${who}`);
     if (!isValidBirthday(p.birthday)) return fail(`生年月日を正しく入力してください。${who}`);
-    const prayer = PRAYERS.find((x) => x.name === p.prayer);
-    if (!prayer && p.prayer !== PRAYER_OTHER) return fail(`ご祈願内容を選んでください。${who}`);
-    if (p.prayer === PRAYER_OTHER && !p.prayerOther) return fail(`ご祈願内容（その他）を入力してください。${who}`);
-    const extras = new Set<Extra>(prayer?.extras ?? []);
+    // ご祈願内容は1人で複数選べる（Airtable の「御祈祷内容」も複数選択）
+    const chosen = [...new Set(form.getAll(`p${i}-prayer`).map(clean).filter(Boolean))];
+    if (!chosen.length) return fail(`ご祈願内容を選んでください。${who}`);
+    if (chosen.some((c) => c !== PRAYER_OTHER && !PRAYERS.some((x) => x.name === c))) return fail(`ご祈願内容を選び直してください。${who}`);
+    if (chosen.includes(PRAYER_OTHER) && !p.prayerOther) return fail(`ご祈願内容（その他）を入力してください。${who}`);
+    const prayerNames = chosen.map((c) => (c === PRAYER_OTHER ? p.prayerOther : c));
+    const extras = new Set<Extra>(chosen.flatMap((c) => PRAYERS.find((x) => x.name === c)?.extras ?? []));
     if (extras.has('haraobi') && !['あり', 'なし'].includes(p.haraobi)) return fail(`腹帯のお祓いの有無を選んでください。${who}`);
     if (extras.has('parents') && !p.parents) return fail(`父母のお名前を入力してください。${who}`);
     if (extras.has('car') && !p.car) return fail(`車名とナンバーを入力してください。${who}`);
-    people.push({ ...p, prayerName: prayer ? prayer.name : p.prayerOther, extras });
+    people.push({ ...p, prayerNames, extras });
   }
 
   // ── 日時の確認（来社のみ。郵送は枠を使わない） ──
@@ -195,10 +197,15 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   // 同じ予約の行には同じ予約番号を入れ、最初の方（代表者）の行に「代表者」のチェックを入れる
   const reservationNo = newReservationNo();
   const roster = people
-    .map((p, n) => `${n + 1}. ${p.sei}　${p.mei}（${p.seiKana}　${p.meiKana}）　${p.prayerName}`)
+    .map((p, n) => `${n + 1}. ${p.sei}　${p.mei}（${p.seiKana}　${p.meiKana}）　${p.prayerNames.join('・')}`)
     .join('\n');
-  // 祈願内容ごとの案内メールは、同じ祈願内容の最初の1人の行から送る（ご家族で同じ祈願なら1通）
-  const firstOfPrayer = new Set(people.map((p) => people.findIndex((q) => q.prayerName === p.prayerName)));
+  // 祈願内容ごとの案内メールは、それまでの方にない祈願内容を含む行から送る（ご家族で同じ祈願なら1通）
+  const seen = new Set<string>();
+  const guideRows = new Set<number>();
+  people.forEach((p, n) => {
+    if (p.prayerNames.some((name) => !seen.has(name))) guideRows.add(n);
+    p.prayerNames.forEach((name) => seen.add(name));
+  });
   const rows = people.map((p, n) => {
     const fields: Record<string, unknown> = {
       名前: `${p.sei}　${p.mei}`,
@@ -206,7 +213,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       受付経路: 'Webフォーム',
       予約番号: reservationNo,
       代表者: n === 0,
-      案内メール: firstOfPrayer.has(n),
+      案内メール: guideRows.has(n),
       // 2人以上のときだけ、全員の行に一覧を入れる（どの行から送るメールにも差し込めるように）
       同時に受ける方: people.length > 1 ? roster : '',
       [F.date]: visiting ? storedDate(v.date) : '',
@@ -220,7 +227,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       建物名等: v.building,
       電話番号: v.tel,
       メールアドレス: v.email,
-      御祈祷内容: p.prayerName,
+      御祈祷内容: p.prayerNames,
       [F.method]: v.method,
       納入方法: v.payment,
       腹帯のお祓い: p.extras.has('haraobi') ? p.haraobi : '',
