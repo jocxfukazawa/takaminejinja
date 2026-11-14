@@ -212,6 +212,29 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   });
   // 予約全体の初穂料（クレジットカードのお支払いの案内で、予約につき1回だけ伝える）
   const fee = feeSummary(people);
+
+  // 神社へのお知らせメール用に、予約全体の詳しい内容を1つの文章にまとめる（代表者の行に入れる）。
+  // 祈願内容ごとの欄（父母の名前、車など）も、入力のあった方の分をすべて載せる
+  const details = [
+    `予約番号：${reservationNo}`,
+    `ご祈祷方法：${v.method}`,
+    ...(visiting ? [`日時：${storedDate(v.date)} ${v.time}`] : []),
+    `初穂料の納め方：${v.payment}`,
+    '',
+    ...people.flatMap((p, n) => [
+      `【${n + 1}人目${n === 0 ? '（代表の方）' : ''}】${p.sei}　${p.mei}（${p.seiKana}　${p.meiKana}）`,
+      `性別：${p.gender}　生年月日：${p.birthday.replace(/-/g, '/')}`,
+      `ご祈願：${p.prayerNames.join('・')}`,
+      ...(p.special ? [`お名前の特殊文字：${p.special}`] : []),
+      ...(p.extras.has('haraobi') ? [`腹帯のお祓い：${p.haraobi}`] : []),
+      ...(p.extras.has('parents') ? [`父母のお名前：\n${p.parents}`] : []),
+      ...(p.extras.has('car') ? [`車名とナンバー：\n${p.car}`] : []),
+      '',
+    ]),
+    '【初穂料（目安）】',
+    fee.text,
+    ...(v.message ? ['', '【連絡事項】', v.message] : []),
+  ].join('\n');
   const rows = people.map((p, n) => {
     const fields: Record<string, unknown> = {
       名前: `${p.sei}　${p.mei}`,
@@ -242,6 +265,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       父母の名前: p.extras.has('parents') ? p.parents : '',
       '車名・ナンバー': p.extras.has('car') ? p.car : '',
       連絡事項: n === 0 ? v.message : '',
+      予約の詳細: n === 0 ? details : '',
     };
     // 空の項目は送らない（単一選択に空の選択肢ができないように）。チェックボックスは外したまま送らない
     for (const k of Object.keys(fields)) if (fields[k] === '' || fields[k] === false) delete fields[k];
