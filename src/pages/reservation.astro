@@ -305,13 +305,17 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
     button.textContent = '送信中…';
     try {
       const res = await fetch(form.action, { method: 'POST', body: new FormData(form) });
-      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; refresh?: boolean };
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean; error?: string; refresh?: boolean; step?: string; type?: string; detail?: string;
+      };
       if (res.ok && data.ok) {
         window.location.href = '/reservation/thanks/';
         return;
       }
       if (data.refresh) await loadSlots();
-      showError(data.error || '送信に失敗しました。時間をおいて再度お試しいただくか、お電話でご予約ください。');
+      // 受け付けられなかった原因を小さく添える（お電話の際に神社で原因を調べられるように）
+      const code = [data.step, data.type, data.detail].filter(Boolean).join(' / ');
+      showError((data.error || '送信に失敗しました。時間をおいて再度お試しいただくか、お電話でご予約ください。') + (code ? `\n（${code}）` : ''));
     } catch {
       showError('通信エラーが発生しました。時間をおいて再度お試しください。');
     }

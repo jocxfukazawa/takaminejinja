@@ -557,7 +557,7 @@ time.p-entry__date { color: var(--color-gray-text); font-size: 12px; }
 .p-contact-form__checks label { display: block; padding-left: 10px; font-size: 15px; }
 .cf-turnstile { margin-top: 30px; }
 .p-contact-form__note { margin-top: 20px; font-size: 13px; }
-.p-contact-form__error { margin-top: 16px; padding: 12px 16px; border: 1px solid var(--color-red); color: var(--color-red); background: #fff6f6; }
+.p-contact-form__error { white-space: pre-line; margin-top: 16px; padding: 12px 16px; border: 1px solid var(--color-red); color: var(--color-red); background: #fff6f6; }
 .p-contact-form__submit { margin-top: 20px; text-align: center; }
 .p-contact-form__submit .p-btn:disabled { opacity: .6; cursor: wait; }
 

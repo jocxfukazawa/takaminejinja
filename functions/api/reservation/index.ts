@@ -14,7 +14,7 @@ import {
   bookableDates, isClosed, isValidBirthday, storedDate, type Extra,
 } from '../../../src/lib/reservation';
 import {
-  F, closures, createRecord, deleteRecord, isConfigured, isFirstInSlot, takenSlots, type AirtableEnv,
+  AirtableError, F, closures, createRecord, deleteRecord, isFirstInSlot, missingSettings, takenSlots, type AirtableEnv,
 } from '../../../src/lib/airtable';
 
 interface Env extends AirtableEnv {
@@ -31,6 +31,14 @@ const fail = (error: string, status = 400, extra: Record<string, unknown> = {}) 
   json({ ok: false, error, ...extra }, status);
 
 const UNAVAILABLE = `ただいまWEBでの予約を受け付けられません。お手数ですが、お電話（${PHONE}）でご予約ください。`;
+/**
+ * 受け付けられなかったときに、原因の種類を添える（神社で原因を調べるため。予約の中身や設定の値は含めない）
+ */
+const cause = (step: string, e: unknown) =>
+  e instanceof AirtableError
+    ? { reason: 'airtable', step, type: e.type, detail: e.message.replace(/^Airtable \d+ \S+: /, '').slice(0, 200) }
+    : { reason: 'airtable', step, type: 'NETWORK' };
+
 const SLOT_TAKEN = '選ばれた日時は、ほかの予約で埋まりました。お手数ですが、別の日時をお選びください。';
 
 async function verifyTurnstile(token: string, secret: string, ip: string | null) {
@@ -63,9 +71,10 @@ const METHODS = ['来社', '郵送'];
 const PAYMENTS = ['当日ご社頭でお納め', '事前にクレジットカードでお納め'];
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
-  if (!isConfigured(env) || !env.TURNSTILE_SECRET_KEY) {
-    console.error('reservation: 環境変数が設定されていません');
-    return fail(UNAVAILABLE, 500);
+  const missing = [...missingSettings(env), ...(env.TURNSTILE_SECRET_KEY ? [] : ['TURNSTILE_SECRET_KEY'])];
+  if (missing.length) {
+    console.error('reservation: 環境変数が設定されていません', missing);
+    return fail(UNAVAILABLE, 500, { reason: 'missing-settings', type: missing.join(', ') });
   }
 
   const form = await request.formData();
@@ -144,7 +153,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       if (taken.has(slot)) return fail(SLOT_TAKEN, 409, { refresh: true });
     } catch (e) {
       console.error('reservation: Airtable の読み込みに失敗', e);
-      return fail(UNAVAILABLE, 502);
+      return fail(UNAVAILABLE, 502, cause('予約の確認', e));
     }
   }
 
@@ -181,7 +190,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     record = await createRecord(env, fields);
   } catch (e) {
     console.error('reservation: Airtable への書き込みに失敗', e);
-    return fail(UNAVAILABLE, 502);
+    return fail(UNAVAILABLE, 502, cause('予約の書き込み', e));
   }
 
   // ほぼ同時に同じ枠へ申し込みがあった場合は、先に入った方を残す
