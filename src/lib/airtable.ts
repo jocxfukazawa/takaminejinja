@@ -123,18 +123,29 @@ export async function takenSlots(env: AirtableEnv): Promise<Set<string>> {
   return new Set((await activeBookings(env)).map((r) => r.slot));
 }
 
-/** 今日以降の受付停止の設定 */
+/** 受付停止日の表の項目名（神社の方が名前を少し変えても読めるように、よくある呼び方も受け付ける） */
+const CLOSURE_FIELDS = {
+  date: ['日付', '日にち', '停止日', '受付停止日', '日'],
+  start: ['開始時刻', '開始時間', '開始', 'から'],
+  end: ['終了時刻', '終了時間', '終了', 'まで'],
+};
+
+const pick = (fields: Record<string, unknown>, names: string[]) => {
+  const name = names.find((n) => fields[n] !== undefined && fields[n] !== '');
+  return name ? fields[name] : undefined;
+};
+
+/**
+ * 受付停止の設定。行は多くないので、項目名に頼らず全件を読んでこちらで日付を判定する
+ * （時刻の項目がない表や、時刻が空の行は、その日を終日止める）
+ */
 export async function closures(env: AirtableEnv): Promise<Closure[]> {
-  const records = await listAll(env, env.AIRTABLE_CLOSURE_TABLE!, {
-    filterByFormula: `IS_AFTER({日付}, DATEADD(TODAY(), -2, 'days'))`,
-    'fields[]': ['日付', '開始時刻', '終了時刻'],
-    pageSize: '100',
-  });
+  const records = await listAll(env, env.AIRTABLE_CLOSURE_TABLE!, { pageSize: '100' });
   return records
     .map((r) => ({
-      date: normalizeDate(r.fields['日付']),
-      start: normalizeTime(r.fields['開始時刻']),
-      end: normalizeTime(r.fields['終了時刻']),
+      date: normalizeDate(pick(r.fields, CLOSURE_FIELDS.date)),
+      start: normalizeTime(pick(r.fields, CLOSURE_FIELDS.start)),
+      end: normalizeTime(pick(r.fields, CLOSURE_FIELDS.end)),
     }))
     .filter((c): c is Closure => c.date !== null);
 }
