@@ -138,3 +138,42 @@ export function isValidBirthday(key: string, now = Date.now()): boolean {
 
 /** 予約がうまくいかないときに案内する電話番号 */
 export const PHONE = '0791-52-6464';
+
+/**
+ * 初穂料（お支払いの案内で使う目安の金額）。
+ * ご祈願1件 5,000円。初宮詣 8,000円。安産祈願は腹帯のお祓いありなら 8,000円。
+ * 七五三詣は、同じ予約のごきょうだいの人数で決まる（1人 5,000円、2人 8,000円、3人 10,000円）。
+ */
+export const FEE_BASE = 5000;
+const FEE_BY_PRAYER: Record<string, number> = { 初宮詣: 8000 };
+const FEE_HARAOBI = 8000;
+const SHICHIGOSAN = '七五三詣';
+/** 七五三詣の、ごきょうだいの人数ごとの金額。4人目からは1人 2,000円を足す（仮の決まり） */
+const SHICHIGOSAN_FEES = [0, 5000, 8000, 10000];
+const SHICHIGOSAN_EXTRA = 2000;
+
+export const shichigosanFee = (n: number) =>
+  n < SHICHIGOSAN_FEES.length ? SHICHIGOSAN_FEES[n] : SHICHIGOSAN_FEES.at(-1)! + (n - SHICHIGOSAN_FEES.length + 1) * SHICHIGOSAN_EXTRA;
+
+const yen = (n: number) => `${n.toLocaleString('ja-JP')}円`;
+
+/** 予約全体の初穂料の合計と内訳（例: 「七五三詣（2名）　8,000円」） */
+export function feeSummary(people: { prayerNames: string[]; haraobi?: string }[]) {
+  const lines = new Map<string, { count: number; fee: number }>();
+  const addLine = (label: string, fee: number) => {
+    const line = lines.get(label) ?? { count: 0, fee: 0 };
+    lines.set(label, { count: line.count + 1, fee: line.fee + fee });
+  };
+  let children = 0;
+  for (const p of people) {
+    for (const name of p.prayerNames) {
+      if (name === SHICHIGOSAN) children++;
+      else if (name === '安産祈願' && p.haraobi === 'あり') addLine('安産祈願（腹帯のお祓いあり）', FEE_HARAOBI);
+      else addLine(name, FEE_BY_PRAYER[name] ?? FEE_BASE);
+    }
+  }
+  const items = [...lines].map(([label, l]) => ({ label: l.count > 1 ? `${label}（${l.count}件）` : label, fee: l.fee }));
+  if (children) items.unshift({ label: children > 1 ? `${SHICHIGOSAN}（ごきょうだい${children}名）` : SHICHIGOSAN, fee: shichigosanFee(children) });
+  const total = items.reduce((sum, i) => sum + i.fee, 0);
+  return { total, text: [...items.map((i) => `${i.label}　${yen(i.fee)}`), `合計　${yen(total)}`].join('\n') };
+}

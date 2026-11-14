@@ -13,7 +13,7 @@
 
 import {
   MAX_PERSONS, PHONE, PRAYERS, PRAYER_OTHER, SLOT_TIMES,
-  bookableDates, isClosed, isValidBirthday, storedDate, type Extra,
+  bookableDates, feeSummary, isClosed, isValidBirthday, storedDate, type Extra,
 } from '../../../src/lib/reservation';
 import {
   AirtableError, F, closures, createRecords, deleteRecords, isFirstInSlot, missingSettings, takenSlots, type AirtableEnv,
@@ -206,6 +206,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     if (p.prayerNames.some((name) => !seen.has(name))) guideRows.add(n);
     p.prayerNames.forEach((name) => seen.add(name));
   });
+  // 予約全体の初穂料（クレジットカードのお支払いの案内で、予約につき1回だけ伝える）
+  const fee = feeSummary(people);
   const rows = people.map((p, n) => {
     const fields: Record<string, unknown> = {
       名前: `${p.sei}　${p.mei}`,
@@ -216,6 +218,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       案内メール: guideRows.has(n),
       // 2人以上のときだけ、全員の行に一覧を入れる（どの行から送るメールにも差し込めるように）
       同時に受ける方: people.length > 1 ? roster : '',
+      予約の初穂料合計: fee.total,
+      初穂料の内訳: fee.text,
       [F.date]: visiting ? storedDate(v.date) : '',
       [F.time]: visiting ? v.time : '',
       ふりがな: `${p.seiKana}　${p.meiKana}`,
