@@ -1,6 +1,9 @@
 /_astro/*
   Cache-Control: public, max-age=31536000, immutable
 
+/zip/*
+  Cache-Control: public, max-age=604800
+
 /wp-content/uploads/*
   Cache-Control: public, max-age=2592000
 

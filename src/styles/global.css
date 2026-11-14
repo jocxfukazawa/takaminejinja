@@ -582,6 +582,12 @@ time.p-entry__date { color: var(--color-gray-text); font-size: 12px; }
 .p-contact-form :is(select, input[type=date]):focus { outline: none; border-color: #999; }
 .p-contact-form select:disabled { color: #888; }
 .p-reserve__short { max-width: 240px; }
+.p-reserve__candidates { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.p-reserve__candidates button {
+  padding: 6px 12px; border: 1px solid var(--color-red); background: #fff; color: var(--color-red);
+  font: inherit; font-size: 14px; cursor: pointer;
+}
+.p-reserve__candidates button:hover { background: #fff6f6; }
 .p-reserve__pair { display: flex; gap: 12px; }
 .p-reserve__pair label { flex: 1; display: flex; align-items: center; gap: 8px; font-size: 14px; }
 .p-reserve__pair label span { flex: none; min-width: 2em; }

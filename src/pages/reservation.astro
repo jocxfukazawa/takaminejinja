@@ -133,7 +133,11 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
 
     <div class="p-contact-form__row">
       <div class="p-contact-form__label"><label for="zip">郵便番号</label></div>
-      <div class="p-contact-form__field"><input id="zip" name="zip" type="text" inputmode="numeric" maxlength="8" placeholder="6781234" autocomplete="postal-code" class="p-reserve__short" /></div>
+      <div class="p-contact-form__field">
+        <input id="zip" name="zip" type="text" inputmode="numeric" maxlength="8" placeholder="6781234" autocomplete="postal-code" class="p-reserve__short" aria-describedby="js-zip-status" />
+        <p class="p-reserve__help" id="js-zip-status" aria-live="polite">郵便番号を入れると、住所が自動で入ります。</p>
+        <div class="p-reserve__candidates" id="js-zip-candidates" hidden></div>
+      </div>
     </div>
     <div class="p-contact-form__row">
       <div class="p-contact-form__label"><label for="address">住所</label><span class="p-required">必須</span></div>
@@ -253,6 +257,79 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
     }
     renderTimes();
   };
+
+  // ── 郵便番号から住所を入れる（public/zip/ に置いた日本郵便のデータを使う） ──
+  const zip = form.querySelector<HTMLInputElement>('#zip')!;
+  const address = form.querySelector<HTMLInputElement>('#address')!;
+  const zipStatus = document.getElementById('js-zip-status')!;
+  const zipCandidates = document.getElementById('js-zip-candidates')!;
+  const ZIP_HELP = zipStatus.textContent!;
+  const zipFiles = new Map<string, Promise<Record<string, string[]>>>();
+  /** 最後に自動で入れた住所（その後ろに書き足された番地は残す） */
+  let autoFilled = '';
+
+  const zipDigits = () =>
+    zip.value.replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0)).replace(/\D/g, '');
+
+  const applyAddress = (value: string) => {
+    const rest = autoFilled && address.value.startsWith(autoFilled) ? address.value.slice(autoFilled.length) : '';
+    address.value = value + rest;
+    autoFilled = value;
+    address.classList.remove('is-invalid');
+    zipCandidates.hidden = true;
+    zipStatus.textContent = rest ? '住所を入れ直しました。' : '住所を入れました。続けて番地などをご入力ください。';
+    if (!rest) {
+      address.focus();
+      address.setSelectionRange(address.value.length, address.value.length);
+    }
+  };
+
+  const lookupAddress = async () => {
+    const code = zipDigits();
+    zipCandidates.hidden = true;
+    zipCandidates.innerHTML = '';
+    if (code.length !== 7) {
+      zipStatus.textContent = ZIP_HELP;
+      return;
+    }
+    const prefix = code.slice(0, 3);
+    let data: Record<string, string[]>;
+    try {
+      if (!zipFiles.has(prefix)) {
+        zipFiles.set(prefix, fetch(`/zip/${prefix}.json`).then((r) => (r.ok ? r.json() : {})));
+      }
+      data = await zipFiles.get(prefix)!;
+    } catch {
+      zipFiles.delete(prefix);
+      zipStatus.textContent = '住所を読み込めませんでした。住所欄に直接ご入力ください。';
+      return;
+    }
+    if (zipDigits() !== code) return; // 読み込みの間に番号が変わった
+    const found = data[code] ?? [];
+    if (!found.length) {
+      zipStatus.textContent = 'この郵便番号の住所が見つかりませんでした。住所欄に直接ご入力ください。';
+      return;
+    }
+    // 住所欄が空か、前に自動で入れたものなら、そのまま入れる。手で書いた住所は勝手に書き換えない
+    const free = !address.value.trim() || (autoFilled !== '' && address.value.startsWith(autoFilled));
+    if (found.length === 1 && free) {
+      applyAddress(found[0]);
+      return;
+    }
+    zipStatus.textContent = found.length > 1
+      ? 'この郵便番号には複数の地域があります。あてはまるものを選んでください。'
+      : '住所欄に入れる場合は、下の住所を押してください。';
+    for (const value of found) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = value;
+      b.addEventListener('click', () => applyAddress(value));
+      zipCandidates.appendChild(b);
+    }
+    zipCandidates.hidden = false;
+  };
+
+  zip.addEventListener('input', lookupAddress);
 
   const showError = (message: string) => {
     error.textContent = message;
