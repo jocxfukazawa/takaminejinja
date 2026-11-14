@@ -192,7 +192,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   }
 
   // ── Airtable へ書き込む（1人1行。項目名は Google フォームから取り込んでいたときと同じ） ──
-  // 同じ予約の行には同じ予約番号を入れ、最初の方（代表者）の行に全員の一覧を入れる（受付メールで使う）
+  // 同じ予約の行には同じ予約番号を入れ、最初の方（代表者）の行に「代表者」のチェックを入れる
   const reservationNo = newReservationNo();
   const roster = people
     .map((p, n) => `${n + 1}. ${p.sei}　${p.mei}（${p.seiKana}　${p.meiKana}）　${p.prayerName}`)
@@ -207,7 +207,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       予約番号: reservationNo,
       代表者: n === 0,
       案内メール: firstOfPrayer.has(n),
-      同時に受ける方: n === 0 ? roster : '',
+      // 2人以上のときだけ、全員の行に一覧を入れる（どの行から送るメールにも差し込めるように）
+      同時に受ける方: people.length > 1 ? roster : '',
       [F.date]: visiting ? storedDate(v.date) : '',
       [F.time]: visiting ? v.time : '',
       ふりがな: `${p.seiKana}　${p.meiKana}`,
