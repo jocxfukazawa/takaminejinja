@@ -79,7 +79,9 @@ function newReservationNo(now = Date.now()) {
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const GENDERS = ['男', '女', '回答しない'];
 const METHODS = ['来社', '郵送'];
-const PAYMENTS = ['当日ご社頭でお納め', '事前にクレジットカードでお納め'];
+const PAY_ONSITE = '当日ご社頭でお納め';
+const PAY_OTHER = 'その他';
+const PAYMENTS = [PAY_ONSITE, '事前にクレジットカードでお納め', PAY_OTHER];
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const missing = [...missingSettings(env), ...(env.TURNSTILE_SECRET_KEY ? [] : ['TURNSTILE_SECRET_KEY'])];
@@ -126,6 +128,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!EMAIL_RE.test(v.email)) return fail('メールアドレスの形式が正しくありません。');
   if (!METHODS.includes(v.method)) return fail('ご祈祷方法を選んでください。');
   if (!PAYMENTS.includes(v.payment)) return fail('初穂料の納め方を選んでください。');
+  if (v.method === '郵送' && v.payment === PAY_ONSITE) return fail('郵送の場合は、当日ご社頭でお納めいただくことはできません。初穂料の納め方を選び直してください。');
+  if (v.payment === PAY_OTHER && !v.message) return fail('初穂料の納め方（その他）のご希望を、連絡事項にご記入ください。');
 
   // ── ご祈祷を受ける方（p0-sei、p3-sei… のように番号つきで届く。番号は飛ぶことがある） ──
   const indexes = [...new Set([...form.keys()].map((k) => k.match(/^p(\d{1,3})-sei$/)?.[1]).filter((i): i is string => !!i))]

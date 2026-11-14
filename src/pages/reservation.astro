@@ -161,16 +161,17 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
     <div class="p-contact-form__row">
       <div class="p-contact-form__label" id="payment-label">初穂料の納め方<span class="p-required">必須</span></div>
       <div class="p-contact-form__field p-reserve__choices" role="radiogroup" aria-labelledby="payment-label">
-        <label><input type="radio" name="payment" value="当日ご社頭でお納め" required /> 当日ご社頭でお納め</label>
+        <label data-payment-onsite><input type="radio" name="payment" value="当日ご社頭でお納め" required /> 当日ご社頭でお納め</label>
         <label><input type="radio" name="payment" value="事前にクレジットカードでお納め" /> 事前にクレジットカードでお納め</label>
+        <label><input type="radio" name="payment" value="その他" /> その他（下の「連絡事項」にご記入ください）</label>
         <p class="p-reserve__help">クレジットカードの場合は、予約確定後に納め方をメールでお知らせいたします。</p>
       </div>
     </div>
     <div class="p-contact-form__row">
-      <div class="p-contact-form__label"><label for="message">連絡事項</label></div>
+      <div class="p-contact-form__label"><label for="message">連絡事項</label><span class="p-required" id="js-message-required" hidden>必須</span></div>
       <div class="p-contact-form__field">
         <textarea id="message" name="message" rows="5" maxlength="2000"></textarea>
-        <p class="p-reserve__help">お一人で複数のご祈願を希望される場合や、そのほかご要望があればご記入ください。</p>
+        <p class="p-reserve__help" id="js-message-help">ご要望などがあればご記入ください。</p>
       </div>
     </div>
 
@@ -206,9 +207,26 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
   /** 選ばれているご祈祷方法 */
   const methodValue = () => form.querySelector<HTMLInputElement>('input[name=method]:checked')?.value ?? '';
 
-  /** ご祈祷方法に合わせて、日時の欄を出し入れする */
+  /** ご祈祷方法に合わせて、日時の欄と「当日ご社頭でお納め」を出し入れする */
   const toggleVisit = () => {
-    form.querySelector<HTMLElement>('[data-show="visit"]')!.hidden = methodValue() !== '来社';
+    const visit = methodValue() === '来社';
+    form.querySelector<HTMLElement>('[data-show="visit"]')!.hidden = !visit;
+    // 郵送では社頭でお納めいただけないので、選択肢ごと隠す（選んでいたら外す）
+    const onsite = form.querySelector<HTMLElement>('[data-payment-onsite]')!;
+    onsite.hidden = !visit;
+    if (!visit) onsite.querySelector('input')!.checked = false;
+    togglePayment();
+  };
+
+  /** 納め方で「その他」を選んだら、連絡事項を必須にする */
+  const message = form.querySelector<HTMLTextAreaElement>('#message')!;
+  const togglePayment = () => {
+    const other = form.querySelector<HTMLInputElement>('input[name=payment]:checked')?.value === 'その他';
+    document.getElementById('js-message-required')!.hidden = !other;
+    message.toggleAttribute('data-required', other);
+    document.getElementById('js-message-help')!.textContent = other
+      ? '初穂料の納め方のご希望をご記入ください。そのほかご要望があれば、あわせてご記入ください。'
+      : 'ご要望などがあればご記入ください。';
   };
 
   /** その方のご祈願内容に合わせて、追加の欄を出し入れする */
@@ -390,6 +408,7 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
   };
 
   form.querySelectorAll('input[name=method]').forEach((el) => el.addEventListener('change', toggleVisit));
+  form.querySelectorAll('input[name=payment]').forEach((el) => el.addEventListener('change', togglePayment));
   // 入力し直した欄は、赤い枠をすぐに外す
   form.addEventListener('input', (e) => {
     const el = e.target as HTMLElement;
