@@ -67,6 +67,19 @@ const cleanMultiline = (v: FormDataEntryValue | null) =>
 const digits = (v: FormDataEntryValue | null) =>
   String(v ?? '').replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0)).replace(/\D/g, '');
 
+/** 生年月日（'YYYY-MM-DD'）を和暦で（例: 昭和58年10月12日）。元年は「元年」と書く */
+function wareki(key: string) {
+  const [y, m, d] = key.split('-').map(Number);
+  const eras: [string, number, number, number][] = [
+    ['令和', 2019, 5, 1], ['平成', 1989, 1, 8], ['昭和', 1926, 12, 25], ['大正', 1912, 7, 30], ['明治', 1868, 1, 25],
+  ];
+  const n = y * 10000 + m * 100 + d;
+  const era = eras.find(([, ey, em, ed]) => n >= ey * 10000 + em * 100 + ed);
+  if (!era) return '';
+  const year = y - era[1] + 1;
+  return `${era[0]}${year === 1 ? '元' : year}年${m}月${d}日`;
+}
+
 /** 予約番号（例: W261114-7KQ2）。同じ予約で一緒に受ける方の行に同じ番号を入れる */
 function newReservationNo(now = Date.now()) {
   const jst = new Date(now + 9 * 60 * 60 * 1000).toISOString();
@@ -213,25 +226,33 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   // 神社へのお知らせメール用に、予約全体の詳しい内容を1つの文章にまとめる（代表者の行に入れる）。
   // 祈願内容ごとの欄（父母の名前、車など）も、入力のあった方の分をすべて載せる
+  const multiple = people.length > 1;
   const details = [
-    `予約番号：${reservationNo}`,
-    `ご祈祷方法：${v.method}`,
-    ...(visiting ? [`日時：${storedDate(v.date)} ${v.time}`] : []),
-    `初穂料の納め方：${v.payment}`,
-    '',
+    ...(visiting ? [`ご祈祷希望日時：${storedDate(v.date)} ${v.time}`] : []),
     ...people.flatMap((p, n) => [
-      `【${n + 1}人目${n === 0 ? '（代表の方）' : ''}】${p.sei}　${p.mei}（${p.seiKana}　${p.meiKana}）`,
-      `性別：${p.gender}　生年月日：${p.birthday.replace(/-/g, '/')}`,
-      `ご祈願：${p.prayerNames.join('・')}`,
-      ...(p.special ? [`お名前の特殊文字：${p.special}`] : []),
+      ...(multiple ? ['', `【${n + 1}人目${n === 0 ? '（代表の方）' : ''}】`] : []),
+      `お名前：${p.sei}　${p.mei}`,
+      `ふりがな：${p.seiKana}　${p.meiKana}`,
+      ...(p.special ? [`名前の特殊文字：${p.special}`] : []),
+      `性別：${p.gender}`,
+      `生年月日：${p.birthday.replace(/-/g, '/')}（${wareki(p.birthday)}）`,
+      `ご祈願内容：${p.prayerNames.join('・')}`,
       ...(p.extras.has('haraobi') ? [`腹帯のお祓い：${p.haraobi}`] : []),
-      ...(p.extras.has('parents') ? [`父母のお名前：\n${p.parents}`] : []),
-      ...(p.extras.has('car') ? [`車名とナンバー：\n${p.car}`] : []),
-      '',
+      ...(p.extras.has('parents') ? [`父母の名前：\n${p.parents}`] : []),
+      ...(p.extras.has('car') ? [`車名・ナンバー：\n${p.car}`] : []),
     ]),
-    '【初穂料（目安）】',
-    fee.text,
-    ...(v.message ? ['', '【連絡事項】', v.message] : []),
+    '',
+    `郵便番号：${v.zip}`,
+    `住所：${v.address}`,
+    `建物名：${v.building}`,
+    `電話番号：${v.tel}`,
+    `メールアドレス：${v.email}`,
+    '',
+    `御祈祷方法：${v.method}`,
+    `初穂料について：${v.payment}`,
+    `初穂料（目安）：\n${fee.text}`,
+    `連絡事項：${v.message}`,
+    ...(multiple ? ['', `予約番号：${reservationNo}`] : []),
   ].join('\n');
   const rows = people.map((p, n) => {
     const fields: Record<string, unknown> = {
