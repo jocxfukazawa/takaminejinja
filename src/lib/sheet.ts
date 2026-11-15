@@ -30,7 +30,8 @@ export interface Sheet {
   birth: { era: string; year: number; month: number; day: number } | null;
   kazoe: number | null;
   zip: string;
-  address: string;
+  /** 住所と建物名（祝詞で読み上げやすいよう、建物名は改行して書く） */
+  address: string[];
   tel: string;
 }
 
@@ -92,7 +93,7 @@ export function toSheet(row: SheetRow): { sheet: Sheet | null; separate: string[
       birth: birthEra ? { era: birthEra.era, year: birthEra.year, month: bm, day: bd } : null,
       kazoe: birthKey ? prayerYear - Number(birthKey.slice(0, 4)) + 1 : null,
       zip: text(f['郵便番号']).replace(/^(\d{3})(\d{4})$/, '$1-$2'),
-      address: [text(f['住所']), text(f['建物名等'])].filter(Boolean).join('　'),
+      address: [text(f['住所']), text(f['建物名等'])].filter(Boolean),
       tel: text(f['電話番号']),
     },
   };

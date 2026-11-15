@@ -160,7 +160,18 @@
       parts.push(cell(58, 9, 11, 21, '会社・団体<br>事業所名', 'v label', 'font-size:2.3mm;letter-spacing:0;'));
       // 住所（下まで）
       parts.push(cell(101, 30, 5, 126));
-      parts.push(cell(91, 30, 10, 126, `<div class="v val" style="padding:2mm 1mm;font-size:3.4mm;line-height:1.3;height:100%;">${esc(s.address)}</div>`));
+      // 住所は祝詞で読み上げるので、欄に収まるかぎり大きく書く（建物名は改行して2列目に）
+      parts.push(cell(91, 30, 10, 126,
+        (() => {
+          // 住所と建物名が1列に収まるならつなげて書く。収まらなければ、建物名の途中で折り返さないよう改行して書く
+          const oneLine = [s.address.join('　')];
+          const a = fit(oneLine, 9, 118, 5.2, 1.15);
+          const fitsOneColumn = [...oneLine[0]].length <= Math.floor(118 / Number(a));
+          const [size, lines] = fitsOneColumn || s.address.length < 2
+            ? [a, oneLine]
+            : [fit(s.address, 9, 118, 5.2, 1.15), s.address];
+          return `<div class="v val" style="padding:3mm .5mm;font-size:${size}mm;line-height:1.15;height:100%;">${lines.map(esc).join('<br>')}</div>`;
+        })()));
       // 氏名とふりがな
       parts.push(cell(86, 30, 5, 80, `<div class="v val" style="padding:2mm 0;font-size:2.8mm;width:100%;display:flex;justify-content:center;">${esc(s.kana)}</div>`));
       parts.push(cell(74, 30, 12, 72, `<div class="v val" style="padding:4mm 0;font-size:6mm;width:100%;display:flex;justify-content:center;letter-spacing:1mm;">${esc(s.name)}</div>`));
