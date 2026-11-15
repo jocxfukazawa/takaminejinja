@@ -173,5 +173,5 @@ Web の予約・事前申し込みを、紙の祈祷申込書（B6・縦書き�
 - **印刷は https://admin.takaminejinja.pages.dev/admin/print/ から行う。** 本番のアドレス（www.takaminejinja.jp）では、ログインがないので印刷データは返さない
   - `admin` ブランチの確認用アドレス。Pages の「プレビューへのアクセスを制限する」（Cloudflare Access）で守られ、プレビューの環境の設定（Airtable、`ACCESS_*`）を使う
   - takaminejinja.jp の DNS はさくらにあり、Cloudflare Access を本番のアドレスに付けられないため、この形にしている
-  - **main を更新したら、`admin` ブランチも同じ内容にそろえる**（`git push origin main:admin`）
+  - **main を更新したら、`admin` ブランチにも取り込む**（`git checkout admin && git merge --no-edit main && git push origin admin`）。同じコミットのままだと確認用アドレスが作り直されないことがあるので、マージのコミットを作る
 
