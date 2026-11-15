@@ -771,3 +771,11 @@ time.p-entry__date { color: var(--color-gray-text); font-size: 12px; }
 .p-reserve__fortune strong { color: var(--color-red); }
 .p-reserve__fortune-note { margin-top: 4px; color: #666; font-size: 12px; }
 .p-reserve__fortune-note a { text-decoration: underline; }
+
+/* 黒星祈願祭のページ：事前申し込みへのボタン */
+.p-kuroboshi-advance { margin-top: 12px; }
+.p-kuroboshi-advance .p-btn {
+  display: block; width: 100%; max-width: 280px; min-width: 0; height: auto; padding: 12px 10px;
+  color: #fff; text-align: center; line-height: 1.5; text-decoration: none; white-space: nowrap;
+}
+.p-kuroboshi-advance .p-btn:hover { color: #fff; }
