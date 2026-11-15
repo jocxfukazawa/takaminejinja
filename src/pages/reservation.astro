@@ -1,11 +1,30 @@
 ---
 import FixedPage from '../layouts/FixedPage.astro';
 import ReservationForm from '../components/ReservationForm.astro';
+import { ADVANCE_DATES, KUROBOSHI_YEAR, advanceDatesLabel } from '../lib/reservation';
+
+// 予約不要の日（年始・黒星祈願祭）の案内。期間が全部過ぎたら、ページを開いたときに隠す
+const lastAdvanceDate = ADVANCE_DATES[ADVANCE_DATES.length - 1];
 ---
 <FixedPage slug="reservation" narrow>
   <Fragment slot="head">
     <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
   </Fragment>
+
+  <div class="p-reserve-advance" id="js-reserve-advance" data-last={lastAdvanceDate}>
+    <p class="p-reserve-advance__title">予約不要の日について</p>
+    <p>令和{KUROBOSHI_YEAR - 2018}年 <strong>{advanceDatesLabel()}</strong>（年始・黒星祈願祭）は、ご祈祷のご予約は承っておりません。お越しになった順にご案内いたします。</p>
+    <p>この期間にご祈祷を受けられる方は、WEBで<strong>事前にお申し込み</strong>いただくと、お名前を記した御札や御守をご用意してお待ちしておりますので、当日の受付が早く済みます（締め切りは、ご来社予定日の前日の午後5時です）。</p>
+    <p class="p-reserve-advance__btn"><a class="p-btn" href="/reservation/advance/">事前申し込みはこちら</a></p>
+  </div>
+  <script is:inline>
+    // 期間が全部過ぎていたら、案内を隠す（日本時間の今日で判断）
+    (() => {
+      const box = document.getElementById('js-reserve-advance');
+      const today = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+      if (box && today > box.dataset.last) box.hidden = true;
+    })();
+  </script>
 
   <ReservationForm />
 </FixedPage>

@@ -779,3 +779,11 @@ time.p-entry__date { color: var(--color-gray-text); font-size: 12px; }
   color: #fff; text-align: center; line-height: 1.5; text-decoration: none; white-space: nowrap;
 }
 .p-kuroboshi-advance .p-btn:hover { color: #fff; }
+
+/* ご祈祷の予約のページ：予約不要の日（事前申し込み）の案内 */
+.p-reserve-advance { margin-top: 30px; padding: 20px 22px; border: 2px solid var(--color-red); background: #fff8f8; font-size: 14px; line-height: 1.9; }
+.p-reserve-advance p + p { margin-top: .6em; }
+.p-reserve-advance__title { font-family: var(--font-mincho); font-size: 17px; font-weight: 600; }
+.p-reserve-advance__btn { margin-top: 14px !important; }
+.p-reserve-advance__btn .p-btn { display: block; width: 100%; max-width: 280px; min-width: 0; padding: 12px 10px; color: #fff; text-align: center; text-decoration: none; white-space: nowrap; }
+.p-reserve-advance__btn .p-btn:hover { color: #fff; }
