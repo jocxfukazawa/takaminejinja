@@ -43,8 +43,8 @@
     .sheet__title span { border-bottom: .4mm solid #111; padding: 0 1mm .5mm 4mm; }
     .sheet__no { position: absolute; right: 6mm; top: 9mm; font-size: 4.2mm; letter-spacing: .3mm; }
     .sheet__copy { position: absolute; left: 6mm; top: 6mm; width: 11mm; height: 11mm; border: .3mm solid #111; border-radius: 50%; text-align: center; font-size: 6mm; line-height: 10mm; }
-    .sheet__shrine { position: absolute; left: 4mm; bottom: 12mm; writing-mode: vertical-rl; font-size: 7mm; font-weight: 700; letter-spacing: 5mm; }
-    .sheet__table { position: absolute; left: 16mm; top: 20mm; width: 106mm; height: 156mm; border: .35mm solid #111; }
+    .sheet__shrine { position: absolute; left: 3.5mm; bottom: 12mm; writing-mode: vertical-rl; font-size: 5mm; font-weight: 700; letter-spacing: 4mm; }
+    .sheet__table { position: absolute; left: 12mm; top: 20mm; width: 110mm; height: 156mm; border: .35mm solid #111; }
     /* 隣り合う枠の線が重なって太くならないよう、各枠は右と下の線だけを引く（上と左は隣の枠か表の外枠が引く） */
     .c { position: absolute; border-right: .15mm solid #111; border-bottom: .15mm solid #111; overflow: hidden; }
     .v { writing-mode: vertical-rl; text-orientation: mixed; }
@@ -151,25 +151,26 @@
         })()));
 
       // ── 右：〒、住所、氏名、会社、生年月日、代表者名 ──
-      parts.push(cell(58, 0, 48, 9, `<span style="font-size:3mm;font-weight:700;">〒</span> <span class="val" style="font-size:3.8mm;">${esc(s.zip)}</span>`, '', 'padding:2mm;'));
-      parts.push(cell(101, 9, 5, 21, 'ふりがな', 'v label', 'font-size:2.2mm;'));
-      parts.push(cell(91, 9, 10, 21, '住　所', 'v label'));
+      // 住所の欄は、左下の「高嶺神社」を小さくして空いた分だけ広い（14mm）。ほかの欄の幅は紙の申込書のまま
+      parts.push(cell(58, 0, 52, 9, `<span style="font-size:3mm;font-weight:700;">〒</span> <span class="val" style="font-size:3.8mm;">${esc(s.zip)}</span>`, '', 'padding:2mm;'));
+      parts.push(cell(105, 9, 5, 21, 'ふりがな', 'v label', 'font-size:2.2mm;'));
+      parts.push(cell(91, 9, 14, 21, '住　所', 'v label'));
       parts.push(cell(86, 9, 5, 21, 'ふりがな', 'v label', 'font-size:2.2mm;'));
       parts.push(cell(74, 9, 12, 21, '氏　名', 'v label'));
       parts.push(cell(69, 9, 5, 21, 'ふりがな', 'v label', 'font-size:2.2mm;'));
       parts.push(cell(58, 9, 11, 21, '会社・団体<br>事業所名', 'v label', 'font-size:2.3mm;letter-spacing:0;'));
       // 住所（下まで）
-      parts.push(cell(101, 30, 5, 126));
+      parts.push(cell(105, 30, 5, 126));
       // 住所は祝詞で読み上げるので、欄に収まるかぎり大きく書く（建物名は改行して2列目に）
-      parts.push(cell(91, 30, 10, 126,
+      parts.push(cell(91, 30, 14, 126,
         (() => {
           // 住所と建物名が1列に収まるならつなげて書く。収まらなければ、建物名の途中で折り返さないよう改行して書く
           const oneLine = [s.address.join('　')];
-          const a = fit(oneLine, 9, 118, 5.2, 1.15);
+          const a = fit(oneLine, 13, 118, 5.2, 1.15);
           const fitsOneColumn = [...oneLine[0]].length <= Math.floor(118 / Number(a));
           const [size, lines] = fitsOneColumn || s.address.length < 2
             ? [a, oneLine]
-            : [fit(s.address, 9, 118, 5.2, 1.15), s.address];
+            : [fit(s.address, 13, 118, 5.2, 1.15), s.address];
           return `<div class="v val" style="padding:3mm .5mm;font-size:${size}mm;line-height:1.15;height:100%;">${lines.map(esc).join('<br>')}</div>`;
         })()));
       // 氏名とふりがな
