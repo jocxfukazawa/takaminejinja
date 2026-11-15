@@ -174,8 +174,8 @@
           return `<div class="v val" style="padding:3mm .5mm;font-size:${size}mm;line-height:1.15;height:100%;">${lines.map(esc).join('<br>')}</div>`;
         })()));
       // 氏名とふりがな（縦書きの列は欄の右に寄るので、外側の箱で左右の中央に置く）
-      parts.push(cell(86, 30, 5, 80, `<div style="display:flex;justify-content:center;height:100%;padding:2mm 0;"><div class="v val" style="font-size:2.8mm;">${esc(s.kana)}</div></div>`));
-      parts.push(cell(74, 30, 12, 72, `<div style="display:flex;justify-content:center;height:100%;padding:4mm 0;"><div class="v val" style="font-size:6mm;letter-spacing:1mm;">${esc(s.name)}</div></div>`));
+      parts.push(cell(86, 30, 5, 80, `<div style="display:flex;justify-content:center;height:100%;padding:2mm 0;"><div class="v val" style="font-size:${fit([s.kana], 4.6, 76, 3.8, 1.1)}mm;line-height:1.1;">${esc(s.kana)}</div></div>`));
+      parts.push(cell(74, 30, 12, 72, `<div style="display:flex;justify-content:center;height:100%;padding:4mm 0;"><div class="v val" style="font-size:${fit([s.name], 11, 62, 6, 1.1, 1)}mm;letter-spacing:1mm;">${esc(s.name)}</div></div>`));
       parts.push(cell(74, 102, 12, 8, esc(s.gender === '回答しない' ? '' : s.gender), 'val', 'font-size:4mm;text-align:center;padding-top:1mm;'));
       // 会社（今回は空欄）
       parts.push(cell(69, 30, 5, 80));
