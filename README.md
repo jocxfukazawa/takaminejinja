@@ -170,5 +170,8 @@ Web の予約・事前申し込みを、紙の祈祷申込書（B6・縦書き�
 - 印刷内容の決まりは `src/lib/sheet.ts`、データは `functions/api/admin/sheets.ts`
 - **Cloudflare Access のログインを通ったときだけ**データを返す（`src/lib/access.ts` が署名・宛先・有効期限を確かめる）
 - 環境変数：`ACCESS_TEAM_DOMAIN`（例 `takaminejinja-pages.cloudflareaccess.com`）、`ACCESS_AUD`（Access アプリケーションの AUD タグ。複数はカンマ区切り）
-- 本番では、Cloudflare Zero Trust で `www.takaminejinja.jp/admin` と `www.takaminejinja.jp/api/admin` を守る Access アプリケーションを作る
+- **印刷は https://admin.takaminejinja.pages.dev/admin/print/ から行う。** 本番のアドレス（www.takaminejinja.jp）では、ログインがないので印刷データは返さない
+  - `admin` ブランチの確認用アドレス。Pages の「プレビューへのアクセスを制限する」（Cloudflare Access）で守られ、プレビューの環境の設定（Airtable、`ACCESS_*`）を使う
+  - takaminejinja.jp の DNS はさくらにあり、Cloudflare Access を本番のアドレスに付けられないため、この形にしている
+  - **main を更新したら、`admin` ブランチも同じ内容にそろえる**（`git push origin main:admin`）
 
