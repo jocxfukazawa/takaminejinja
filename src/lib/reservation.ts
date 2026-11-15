@@ -255,3 +255,21 @@ export function eraOf(key: string): { era: string; year: number } | null {
   const m = wareki(key).match(/^(\D+?)(元|\d+)年/);
   return m ? { era: m[1], year: m[2] === '元' ? 1 : Number(m[2]) } : null;
 }
+
+/** 事前申し込みの日の書き方（例: 1月1日〜3日・9日〜11日・15日）。続いた日は「〜」でまとめる */
+export function advanceDatesLabel(dates = ADVANCE_DATES): string {
+  const byMonth = new Map<number, number[]>();
+  for (const key of dates) {
+    const [, m, d] = key.split('-').map(Number);
+    byMonth.set(m, [...(byMonth.get(m) ?? []), d]);
+  }
+  return [...byMonth].map(([m, days]) => {
+    const runs: [number, number][] = [];
+    for (const d of days.sort((a, b) => a - b)) {
+      const last = runs[runs.length - 1];
+      if (last && d === last[1] + 1) last[1] = d;
+      else runs.push([d, d]);
+    }
+    return `${m}月` + runs.map(([a, b]) => (a === b ? `${a}日` : `${a}日〜${b}日`)).join('・');
+  }).join('、');
+}
