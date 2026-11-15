@@ -1,0 +1,205 @@
+---
+/**
+ * 祈祷申込書の印刷（神社の方だけ。Cloudflare Access のログインが必要）
+ *
+ * 日付か予約番号を選ぶと、Web の予約・事前申し込みを、紙の祈祷申込書と同じ形で
+ * B6 の用紙に1人1枚、祝詞用と控えの2枚ずつ印刷する。
+ * 七五三詣・初宮詣は別の申込書なので、ここでは印刷せず一覧に出す。
+ */
+import { SHEET_PRAYERS } from '../../lib/sheet';
+---
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>祈祷申込書の印刷 - 高嶺神社</title>
+  <!-- どのパソコンでも同じ字形・字幅で印刷されるよう、日本語のフォントを読み込む -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500&family=Noto+Serif+JP:wght@500;700&display=block" />
+  <style is:global>
+    @page { size: 128mm 182mm; margin: 0; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #e9e9e9; color: #111; font-family: "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif; }
+    .controls { position: sticky; top: 0; z-index: 2; padding: 14px 20px; background: #fff; border-bottom: 1px solid #ccc; }
+    .controls h1 { margin: 0 0 10px; font-size: 18px; }
+    .controls form { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; font-size: 14px; }
+    .controls input { padding: 6px 8px; font: inherit; }
+    .controls button { padding: 7px 16px; font: inherit; cursor: pointer; }
+    .controls .print { background: #c00; color: #fff; border: 0; }
+    .status { margin-top: 10px; font-size: 14px; white-space: pre-line; }
+    .status.is-error { color: #c00; }
+    .separate { margin-top: 8px; padding: 8px 12px; background: #fff8e5; border: 1px solid #e6c200; font-size: 13px; }
+    .sheets { display: flex; flex-wrap: wrap; gap: 16px; padding: 20px; }
+
+    /* ── 申込書（B6 縦 128 × 182 mm） ── */
+    .sheet {
+      position: relative; width: 128mm; height: 182mm; overflow: hidden; background: #fff;
+      font-family: "Noto Serif JP", "Hiragino Mincho ProN", "Yu Mincho", serif;
+      box-shadow: 0 1px 4px rgba(0,0,0,.2);
+    }
+    .sheet__title { position: absolute; left: 0; right: 0; top: 7mm; text-align: center; font-size: 7mm; font-weight: 700; letter-spacing: 3mm; }
+    .sheet__title span { border-bottom: .6mm solid #111; padding: 0 1mm .5mm 4mm; }
+    .sheet__copy { position: absolute; left: 6mm; top: 6mm; width: 11mm; height: 11mm; border: .5mm solid #111; border-radius: 50%; text-align: center; font-size: 6mm; line-height: 10mm; }
+    .sheet__shrine { position: absolute; left: 4mm; bottom: 12mm; writing-mode: vertical-rl; font-size: 7mm; font-weight: 700; letter-spacing: 5mm; }
+    .sheet__table { position: absolute; left: 16mm; top: 20mm; width: 106mm; height: 156mm; border: .5mm solid #111; }
+    .c { position: absolute; border: .25mm solid #111; overflow: hidden; }
+    .v { writing-mode: vertical-rl; text-orientation: mixed; }
+    .num { text-combine-upright: all; }
+    .label { font-size: 2.6mm; font-weight: 700; display: flex; align-items: center; justify-content: center; letter-spacing: .6mm; }
+    .val { font-family: "Noto Sans JP", "Hiragino Sans", "Yu Gothic", sans-serif; }
+    .prayer { display: flex; align-items: center; justify-content: center; font-size: 5.6mm; font-weight: 700; letter-spacing: .8mm; }
+    .prayer.is-long { font-size: 4.4mm; letter-spacing: 0; }
+    .prayer.is-on::after {
+      content: ""; position: absolute; left: 1mm; right: 1mm; top: 2.5mm; bottom: 2.5mm;
+      border: .6mm solid #111; border-radius: 4mm;
+    }
+    .ring { display: inline-block; border: .45mm solid #111; border-radius: 50%; padding: .2mm .8mm; }
+    @media print {
+      body { background: #fff; }
+      .controls { display: none; }
+      .sheets { display: block; padding: 0; }
+      .sheet { box-shadow: none; page-break-after: always; break-after: page; }
+    }
+  </style>
+</head>
+<body>
+  <div class="controls">
+    <h1>祈祷申込書の印刷（Web の予約・事前申し込み）</h1>
+    <form id="js-form">
+      <label>ご祈祷の日 <input type="date" name="date" /></label>
+      <span>または</span>
+      <label>予約番号 <input type="text" name="no" placeholder="W000121" size="10" /></label>
+      <button type="submit">表示する</button>
+      <button type="button" class="print" id="js-print" disabled>印刷する</button>
+    </form>
+    <p class="status" id="js-status">日付か予約番号を入れて「表示する」を押してください。予約番号で探すと、同じ予約のご家族もまとめて出ます。</p>
+    <div class="separate" id="js-separate" hidden></div>
+  </div>
+  <div class="sheets" id="js-sheets"></div>
+
+  <script define:vars={{ SHEET_PRAYERS }}>
+    const form = document.getElementById('js-form');
+    const statusEl = document.getElementById('js-status');
+    const sheetsEl = document.getElementById('js-sheets');
+    const separateEl = document.getElementById('js-separate');
+    const printBtn = document.getElementById('js-print');
+
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    /** 縦書きの中の数字は横向きのまま1文字ぶんに収める */
+    const n = (v) => `<span class="num">${esc(v)}</span>`;
+    /** 申込書の枠（表の左上からの mm） */
+    const cell = (x, y, w, h, html = '', cls = '', style = '') =>
+      `<div class="c ${cls}" style="left:${x}mm;top:${y}mm;width:${w}mm;height:${h}mm;${style}">${html}</div>`;
+    const ringIf = (on, s) => (on ? `<span class="ring">${s}</span>` : s);
+
+    const LONG = ['焚き上げ祭', '人形供養祭'];
+    /** 備考の行が多いときは、枠（幅 17mm）に収まるよう字を小さくする */
+    const noteSize = (lines) => Math.min(3, 16.5 / (Math.max(lines, 1) * 1.25)).toFixed(2);
+
+    function sheetHtml(s, copy) {
+      const parts = [];
+      // ── 左：受付・祈祷日、備考、No.、初穂料、連絡先 ──
+      parts.push(cell(0, 0, 9, 26, '受付・祈祷日', 'v label'));
+      const d = s.date;
+      parts.push(cell(0, 26, 9, 70,
+        `<span>令和 ${d ? n(d.year) : '　'} 年 ${d ? n(d.month) : '　'} 月 ${d ? n(d.day) : '　'} 日</span>`,
+        'v val', 'font-size:3.6mm;padding:3mm 0;display:flex;align-items:center;letter-spacing:.5mm;'));
+      parts.push(cell(9, 0, 19, 12, '備　考', 'label'));
+      parts.push(cell(9, 12, 19, 84,
+        `<div class="v val" style="position:absolute;inset:2mm 1mm 9mm;font-size:${noteSize(s.notes.length)}mm;line-height:1.25;">${s.notes.map(esc).join('<br>')}</div>
+         <div style="position:absolute;left:0;right:0;bottom:2mm;text-align:center;font-size:3mm;font-weight:700;">A・B・C・D</div>`));
+      parts.push(cell(0, 96, 28, 10, `<span style="font-size:2.6mm;font-weight:700;">No.</span> <span class="val" style="font-size:4mm;">${esc(s.no)}</span>`, '', 'padding:2mm 1.5mm;white-space:nowrap;'));
+      parts.push(cell(0, 106, 28, 28,
+        `<div class="label" style="height:7mm;border-bottom:.25mm solid #111;">初　穂　料</div>
+         <div class="val" style="text-align:right;padding:6mm 2mm 0;font-size:5mm;">${s.fee ? `${esc(s.fee.toLocaleString('ja-JP'))}<small style="font-size:3mm;">円</small>` : ''}</div>`));
+      parts.push(cell(0, 134, 28, 22,
+        `<div style="font-size:2.6mm;font-weight:700;padding:1mm 1.5mm;">連絡先 TEL</div>
+         <div class="val" style="font-size:3.6mm;padding:3mm 1.5mm;">${esc(s.tel)}</div>`));
+
+      // ── 中：祈願の欄（右の列から） ──
+      SHEET_PRAYERS.forEach((col, ci) => {
+        col.forEach((name, ri) => {
+          const on = s.circled.includes(name);
+          parts.push(cell(48 - ci * 10, ri * 39, 10, 39, `<span class="v">${name}</span>`,
+            `prayer${LONG.includes(name) ? ' is-long' : ''}${on ? ' is-on' : ''}`));
+        });
+      });
+
+      // ── 右：〒、住所、氏名、会社、生年月日、代表者名 ──
+      parts.push(cell(58, 0, 48, 9, `<span style="font-size:3mm;font-weight:700;">〒</span> <span class="val" style="font-size:3.8mm;">${esc(s.zip)}</span>`, '', 'padding:2mm;'));
+      parts.push(cell(101, 9, 5, 21, 'ふりがな', 'v label', 'font-size:2.2mm;'));
+      parts.push(cell(91, 9, 10, 21, '住　所', 'v label'));
+      parts.push(cell(86, 9, 5, 21, 'ふりがな', 'v label', 'font-size:2.2mm;'));
+      parts.push(cell(74, 9, 12, 21, '氏　名', 'v label'));
+      parts.push(cell(69, 9, 5, 21, 'ふりがな', 'v label', 'font-size:2.2mm;'));
+      parts.push(cell(58, 9, 11, 21, '会社・団体<br>事業所名', 'v label', 'font-size:2.3mm;letter-spacing:0;'));
+      // 住所（下まで）
+      parts.push(cell(101, 30, 5, 126));
+      parts.push(cell(91, 30, 10, 126, `<div class="v val" style="padding:2mm 1mm;font-size:3.4mm;line-height:1.3;height:100%;">${esc(s.address)}</div>`));
+      // 氏名とふりがな
+      parts.push(cell(86, 30, 5, 80, `<div class="v val" style="padding:2mm 0;font-size:2.8mm;width:100%;display:flex;justify-content:center;">${esc(s.kana)}</div>`));
+      parts.push(cell(74, 30, 12, 72, `<div class="v val" style="padding:4mm 0;font-size:6mm;font-weight:600;width:100%;display:flex;justify-content:center;letter-spacing:1mm;">${esc(s.name)}</div>`));
+      parts.push(cell(74, 102, 12, 8, `${ringIf(s.gender === '女', '女')}・${ringIf(s.gender === '男', '男')}`, '', 'font-size:3mm;text-align:center;padding-top:1.5mm;'));
+      // 会社（今回は空欄）
+      parts.push(cell(69, 30, 5, 80));
+      parts.push(cell(58, 30, 11, 80));
+      // 生年月日・年齢
+      const b = s.birth;
+      parts.push(cell(80, 110, 11, 10, '生年月日', 'label', 'font-size:2.4mm;letter-spacing:0;'));
+      parts.push(cell(74, 110, 6, 10, '年齢', 'v label', 'font-size:2.2mm;'));
+      parts.push(cell(74, 120, 17, 36,
+        `<div style="font-size:2.8mm;text-align:center;padding-top:1mm;line-height:1.6;">${ringIf(b?.era === '大正', '大')}・${ringIf(b?.era === '昭和', '昭')}<br>${ringIf(b?.era === '平成', '平')}・${ringIf(b?.era === '令和', '令')}</div>
+         <div class="val" style="font-size:3.4mm;text-align:center;line-height:1.7;margin-top:1mm;">${b ? `${esc(b.year)} 年<br>${esc(b.month)} 月<br>${esc(b.day)} 日` : '年<br>月<br>日'}<br>${s.kazoe != null ? `${esc(s.kazoe)} 才` : '才'}</div>`));
+      // 代表者名（会社用。今回は空欄）
+      parts.push(cell(69, 110, 5, 14, 'ふりがな', 'v label', 'font-size:2.2mm;'));
+      parts.push(cell(58, 110, 11, 14, '代表者名', 'v label', 'font-size:2.4mm;'));
+      parts.push(cell(69, 124, 5, 32));
+      parts.push(cell(58, 124, 11, 32));
+
+      return `<section class="sheet">
+        ${copy ? '<div class="sheet__copy">控</div>' : ''}
+        <div class="sheet__title"><span>祈祷申込書</span></div>
+        <div class="sheet__shrine">高嶺神社</div>
+        <div class="sheet__table">${parts.join('')}</div>
+      </section>`;
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const date = form.date.value;
+      const no = form.no.value.trim();
+      if (!date && !no) return;
+      statusEl.className = 'status';
+      statusEl.textContent = '読み込んでいます…';
+      sheetsEl.innerHTML = '';
+      separateEl.hidden = true;
+      printBtn.disabled = true;
+      try {
+        const q = no ? `no=${encodeURIComponent(no)}` : `date=${date}`;
+        const res = await fetch(`/api/admin/sheets?${q}`, { cache: 'no-store', credentials: 'same-origin' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.ok) throw new Error(data.error || `読み込めませんでした（${res.status}）`);
+        // 1人につき、祝詞用と控えの2枚
+        sheetsEl.innerHTML = data.sheets.map((s) => sheetHtml(s, false) + sheetHtml(s, true)).join('');
+        statusEl.textContent = data.sheets.length
+          ? `${data.sheets.length}人分（${data.sheets.length * 2}枚）を表示しています。プリンターの用紙を B6 にして印刷してください。`
+          : '印刷する申込書はありません。';
+        if (data.separate.length) {
+          separateEl.innerHTML = '<strong>別の申込書（七五三詣・初宮詣）で受け付ける方：</strong> ' +
+            data.separate.map((p) => `${esc(p.no)} ${esc(p.name)}（${p.prayers.map(esc).join('・')}）`).join('、');
+          separateEl.hidden = false;
+        }
+        await document.fonts.ready;
+        printBtn.disabled = !data.sheets.length;
+      } catch (err) {
+        statusEl.className = 'status is-error';
+        statusEl.textContent = err.message;
+      }
+    });
+    printBtn.addEventListener('click', () => window.print());
+  </script>
+</body>
+</html>

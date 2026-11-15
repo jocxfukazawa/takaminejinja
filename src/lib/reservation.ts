@@ -236,3 +236,22 @@ export function yearFortune(birthYear: number, gender: string, year = KUROBOSHI_
     yaku: yaku as '前厄' | '本厄' | '後厄' | null,
   };
 }
+
+/** 生年月日（'YYYY-MM-DD'）を和暦で（例: 昭和58年10月12日）。元年は「元年」と書く */
+export function wareki(key: string) {
+  const [y, m, d] = key.split('-').map(Number);
+  const eras: [string, number, number, number][] = [
+    ['令和', 2019, 5, 1], ['平成', 1989, 1, 8], ['昭和', 1926, 12, 25], ['大正', 1912, 7, 30], ['明治', 1868, 1, 25],
+  ];
+  const n = y * 10000 + m * 100 + d;
+  const era = eras.find(([, ey, em, ed]) => n >= ey * 10000 + em * 100 + ed);
+  if (!era) return '';
+  const year = y - era[1] + 1;
+  return `${era[0]}${year === 1 ? '元' : year}年${m}月${d}日`;
+}
+
+/** 生年月日（'YYYY-MM-DD'）の元号と年（例: { era: '昭和', year: 58 }） */
+export function eraOf(key: string): { era: string; year: number } | null {
+  const m = wareki(key).match(/^(\D+?)(元|\d+)年/);
+  return m ? { era: m[1], year: m[2] === '元' ? 1 : Number(m[2]) } : null;
+}

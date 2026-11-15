@@ -13,11 +13,11 @@
 
 import {
   MAX_PERSONS, PHONE, PRAYERS, PRAYER_OTHER, SLOT_TIMES,
-  advanceDates, bookableDates, feeSummary, isClosed, isValidBirthday, storedDate, type Extra,
+  advanceDates, bookableDates, feeSummary, wareki, isClosed, isValidBirthday, storedDate, type Extra,
 } from '../../../src/lib/reservation';
 import {
-  AirtableError, F, closures, createRecords, deleteRecords, isFirstInSlot, missingSettings, reservationNoExists, takenSlots,
-  type AirtableEnv,
+  AirtableError, F, closures, createRecords, deleteRecords, formatWebNo, isFirstInSlot, lastWebNumber, missingSettings,
+  recordsWithNumbers, takenSlots, updateRecords, type AirtableEnv, type AirtableRecord,
 } from '../../../src/lib/airtable';
 
 interface Env extends AirtableEnv {
@@ -68,33 +68,41 @@ const cleanMultiline = (v: FormDataEntryValue | null) =>
 const digits = (v: FormDataEntryValue | null) =>
   String(v ?? '').replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0)).replace(/\D/g, '');
 
-/** 生年月日（'YYYY-MM-DD'）を和暦で（例: 昭和58年10月12日）。元年は「元年」と書く */
-function wareki(key: string) {
-  const [y, m, d] = key.split('-').map(Number);
-  const eras: [string, number, number, number][] = [
-    ['令和', 2019, 5, 1], ['平成', 1989, 1, 8], ['昭和', 1926, 12, 25], ['大正', 1912, 7, 30], ['明治', 1868, 1, 25],
-  ];
-  const n = y * 10000 + m * 100 + d;
-  const era = eras.find(([, ey, em, ed]) => n >= ey * 10000 + em * 100 + ed);
-  if (!era) return '';
-  const year = y - era[1] + 1;
-  return `${era[0]}${year === 1 ? '元' : year}年${m}月${d}日`;
-}
 
 /**
- * 予約番号・申込番号（数字だけ）。同じ予約で一緒に受ける方の行には同じ番号を入れる。
- * 事前申し込みは受付で口頭で伝えてもらうので4桁、ご祈祷の予約は6桁（桁数で見分けられる）。
- * 先頭が0にならない範囲から選び、Airtable に同じ番号がないことを確かめてから使う。
+ * 書き込んだ行の予約番号が、先に入った別の行と重なっていたら、空いている続き番号に付け直す。
+ * 「予約の詳細」の中の番号も書き換える
  */
-async function newNumber(env: Env, digits: number) {
-  const min = 10 ** (digits - 1);
-  const span = 9 * min;
-  for (let i = 0; i < 10; i++) {
-    const [r] = crypto.getRandomValues(new Uint32Array(1));
-    const no = String(min + (r % span));
-    if (!(await reservationNoExists(env, no))) return no;
+async function renumberIfTaken(
+  env: Env,
+  records: AirtableRecord[],
+  numbers: string[],
+  onFixed: (numbers: string[]) => void,
+) {
+  const ours = new Set(records.map((r) => r.id));
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const same = await recordsWithNumbers(env, numbers);
+    const first = new Map<string, string>();
+    for (const r of same) {
+      const no = String(r.fields['予約番号']);
+      if (!first.has(no)) first.set(no, r.id);
+    }
+    if (numbers.every((no) => ours.has(first.get(no) ?? ''))) return records;
+    const start = (await lastWebNumber(env)) + 1;
+    const fixed = numbers.map((_, n) => formatWebNo(start + n));
+    await updateRecords(
+      env,
+      records.map((r, n) => {
+        const fields: Record<string, unknown> = { 予約番号: fixed[n], 予約グループ: fixed[0] };
+        const details = r.fields['予約の詳細'];
+        if (typeof details === 'string') fields['予約の詳細'] = details.split(numbers[0]).join(fixed[0]);
+        return { id: r.id, fields };
+      }),
+    );
+    numbers = fixed;
+    onFixed(fixed);
   }
-  throw new Error('空いている番号が見つかりませんでした');
+  return records;
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -229,13 +237,17 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   // ── Airtable へ書き込む（1人1行。項目名は Google フォームから取り込んでいたときと同じ） ──
   // 同じ予約の行には同じ予約番号を入れ、最初の方（代表者）の行に「代表者」のチェックを入れる
-  let reservationNo: string;
+  // 予約番号は1人に1つ（紙の申込書の通し番号にあたる）。続き番号で、代表者の番号を「予約グループ」として全員に入れる
+  let start: number;
   try {
-    reservationNo = await newNumber(env, advance ? 4 : 6);
+    start = (await lastWebNumber(env)) + 1;
   } catch (e) {
     console.error('reservation: 番号を決められなかった', e);
     return fail(UNAVAILABLE, 502, cause('番号の発行', e));
   }
+  const numbersFrom = (first: number) => people.map((_, n) => formatWebNo(first + n));
+  let numbers = numbersFrom(start);
+  const reservationNo = () => numbers[0];
   // 予約全体の初穂料（クレジットカードのお支払いの案内で、予約につき1回だけ伝える）
   const fee = feeSummary(people);
 
@@ -248,7 +260,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return same >= 0 ? `父母の名前：（${same + 1}人目と同じ）` : `父母の名前：\n${p.parents}`;
   };
   const details = [
-    ...(advance ? [`申込番号：${reservationNo}`, `ご来社予定日：${storedDate(v.date)}`] : []),
+    ...(advance ? [`申込番号：${numbers[0]}`, `ご来社予定日：${storedDate(v.date)}`] : []),
     ...(visiting ? [`ご祈祷希望日時：${storedDate(v.date)} ${v.time}`] : []),
     ...people.flatMap((p, n) => [
       ...(multiple ? ['', `【${n + 1}人目${n === 0 ? '（代表の方）' : ''}】`] : []),
@@ -273,14 +285,15 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     `初穂料について：${v.payment}`,
     `初穂料（目安）：\n${fee.text}`,
     `連絡事項：${v.message}`,
-    ...(multiple && !advance ? ['', `予約番号：${reservationNo}`] : []),
+    ...(multiple && !advance ? ['', `予約番号：${numbers[0]}`] : []),
   ].join('\n');
   const rows = people.map((p, n) => {
     const fields: Record<string, unknown> = {
       名前: `${p.sei}　${p.mei}`,
       [F.status]: advance ? '事前申込' : '仮予約',
       受付経路: advance ? '事前申込' : 'Webフォーム',
-      予約番号: reservationNo,
+      予約番号: numbers[n],
+      予約グループ: numbers[0],
       代表者: n === 0,
       予約の初穂料合計: fee.total,
       初穂料の内訳: fee.text,
@@ -331,5 +344,14 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     }
   }
 
-  return json(advance ? { ok: true, no: reservationNo } : { ok: true });
+  // ほぼ同時に申し込みがあり、同じ番号が付いてしまった場合は、後から入った方の番号を付け直す
+  try {
+    records = await renumberIfTaken(env, records, numbers, (fixed) => {
+      numbers = fixed;
+    });
+  } catch (e) {
+    console.error('reservation: 番号の重なりの確認に失敗', e);
+  }
+
+  return json(advance ? { ok: true, no: reservationNo() } : { ok: true });
 };

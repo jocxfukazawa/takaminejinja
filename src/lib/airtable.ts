@@ -118,6 +118,11 @@ const slotKey = (date: unknown, time: unknown) => {
   return d && t ? `${d} ${t}` : null;
 };
 
+/** 予約の表の行を読む（印刷ページなど、神社の方だけが使う処理から） */
+export async function listRows(env: AirtableEnv, params: Record<string, string | string[]>) {
+  return listAll(env, env.AIRTABLE_TABLE!, { pageSize: '100', ...params });
+}
+
 /** 埋まっている枠（'YYYY-MM-DD HH:MM'） */
 export async function takenSlots(env: AirtableEnv): Promise<Set<string>> {
   return new Set((await activeBookings(env)).map((r) => r.slot));
@@ -150,11 +155,32 @@ export async function closures(env: AirtableEnv): Promise<Closure[]> {
     .filter((c): c is Closure => c.date !== null);
 }
 
-/** その予約番号・申込番号の行がすでにあるか */
-export async function reservationNoExists(env: AirtableEnv, no: string) {
-  const q = new URLSearchParams({ filterByFormula: `{予約番号} = '${no.replace(/\D/g, '')}'`, maxRecords: '1', 'fields[]': '予約番号' });
+/**
+ * 予約番号（紙の申込書の通し番号にあたる。W＋6桁の続き番号）。
+ * Web から入った予約・事前申し込みは、1人に1つずつ、飛ばずに続く番号を付ける。
+ */
+export const WEB_NO = /^W\d{6}$/;
+export const formatWebNo = (n: number) => `W${String(n).padStart(6, '0')}`;
+
+/** いちばん新しい予約番号の数（まだなければ 0） */
+export async function lastWebNumber(env: AirtableEnv): Promise<number> {
+  const q = new URLSearchParams({
+    filterByFormula: `REGEX_MATCH({予約番号}, '^W[0-9]{6}$')`,
+    'sort[0][field]': '予約番号',
+    'sort[0][direction]': 'desc',
+    maxRecords: '1',
+    'fields[]': '予約番号',
+  });
   const data = (await call(env, `${tableUrl(env, env.AIRTABLE_TABLE!)}?${q}`)) as { records: AirtableRecord[] };
-  return data.records.length > 0;
+  const no = String(data.records[0]?.fields['予約番号'] ?? '');
+  return WEB_NO.test(no) ? Number(no.slice(1)) : 0;
+}
+
+/** その番号を使っている行（作られた順） */
+export async function recordsWithNumbers(env: AirtableEnv, numbers: string[]) {
+  const formula = `OR(${numbers.map((n) => `{予約番号} = '${n.replace(/[^W0-9]/g, '')}'`).join(', ')})`;
+  const records = await listAll(env, env.AIRTABLE_TABLE!, { filterByFormula: formula, 'fields[]': ['予約番号'], pageSize: '100' });
+  return records.sort((a, b) => a.createdTime.localeCompare(b.createdTime) || a.id.localeCompare(b.id));
 }
 
 /** Airtable は1回に10行までしか作れない・消せないので、10行ずつに分ける */
@@ -176,6 +202,15 @@ export async function createRecords(env: AirtableEnv, list: Record<string, unkno
     throw e;
   }
   return created;
+}
+
+export async function updateRecords(env: AirtableEnv, list: { id: string; fields: Record<string, unknown> }[]) {
+  for (const part of chunks(list)) {
+    await call(env, tableUrl(env, env.AIRTABLE_TABLE!), {
+      method: 'PATCH',
+      body: JSON.stringify({ records: part, typecast: true }),
+    });
+  }
 }
 
 export async function deleteRecords(env: AirtableEnv, ids: string[]) {
