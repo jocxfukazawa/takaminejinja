@@ -764,3 +764,10 @@ time.p-entry__date { color: var(--color-gray-text); font-size: 12px; }
 /* 事前申し込みの申込番号 */
 .p-advance-no { margin: 30px auto 0; padding: 20px; max-width: 360px; border: 2px solid var(--color-red); text-align: center; font-size: 15px; }
 .p-advance-no strong { display: block; margin-top: 6px; font-size: 34px; letter-spacing: .12em; color: var(--color-red); }
+
+/* 事前申し込み：黒星・厄年の目安 */
+.p-reserve__fortune { margin-top: 10px; padding: 10px 14px; border: 1px solid var(--color-border); background: #fff; font-size: 14px; line-height: 1.8; }
+.p-reserve__fortune.is-hit { border-color: var(--color-red); background: #fff6f6; }
+.p-reserve__fortune strong { color: var(--color-red); }
+.p-reserve__fortune-note { margin-top: 4px; color: #666; font-size: 12px; }
+.p-reserve__fortune-note a { text-decoration: underline; }

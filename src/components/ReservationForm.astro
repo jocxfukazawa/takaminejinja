@@ -111,7 +111,15 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
       </div>
       <div class="p-contact-form__row">
         <div class="p-contact-form__label"><label for="p__i__-birthday">生年月日</label><span class="p-required">必須</span></div>
-        <div class="p-contact-form__field"><input id="p__i__-birthday" name="p__i__-birthday" type="date" min="1900-01-01" required /></div>
+        <div class="p-contact-form__field">
+          <input id="p__i__-birthday" name="p__i__-birthday" type="date" min="1900-01-01" required />
+          {advance && (
+            <div class="p-reserve__fortune" data-fortune hidden aria-live="polite">
+              <p data-fortune-text></p>
+              <p class="p-reserve__fortune-note">※ 生まれ年から計算した目安です。正確には<a href="/event/kuroboshi/" target="_blank" rel="noopener">黒星祈願祭のページ</a>の黒星・厄年の表でお確かめください。</p>
+            </div>
+          )}
+        </div>
       </div>
       <div class="p-contact-form__row">
         <div class="p-contact-form__label" id="p__i__-prayer-label">ご祈願内容<span class="p-required">必須</span></div>
@@ -218,7 +226,7 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
 </form>
 
 <script>
-  import { MAX_PERSONS, advanceDates, dateLabel } from '../lib/reservation';
+  import { KUROBOSHI_YEAR, MAX_PERSONS, advanceDates, dateLabel, yearFortune } from '../lib/reservation';
 
   type Day = { date: string; label: string; slots: { time: string; available: boolean }[] };
 
@@ -265,6 +273,34 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
   };
 
   /** その方のご祈願内容に合わせて、追加の欄を出し入れする */
+  /** 黒星・八方ふさがり・厄年の目安を、生年月日の下に出す（事前申し込みのページだけ） */
+  const REIWA = KUROBOSHI_YEAR - 2018;
+  const showFortune = (card: HTMLElement) => {
+    const box = card.querySelector<HTMLElement>('[data-fortune]');
+    if (!box) return;
+    const year = Number(card.querySelector<HTMLInputElement>('input[name$="-birthday"]')!.value.slice(0, 4));
+    if (!year || year < 1900 || year > KUROBOSHI_YEAR) {
+      box.hidden = true;
+      return;
+    }
+    const gender = card.querySelector<HTMLInputElement>('input[name$="-gender"]:checked')?.value ?? '';
+    const f = yearFortune(year, gender);
+    const head = `令和${REIWA}年（数え年${f.kazoe}歳）は、`;
+    const star = f.happou
+      ? `<strong>八方ふさがり</strong>（${f.starName}）にあたります。`
+      : f.kuroboshi
+        ? `<strong>黒星</strong>（${f.starName}）にあたります。`
+        : `黒星にはあたりません（生まれ星：${f.starName}）。`;
+    const yaku = f.yaku
+      ? `また、<strong>${f.yaku}</strong>にあたります。`
+      : gender === '男' || gender === '女'
+        ? '厄年にはあたりません。'
+        : '性別を選ぶと、厄年かどうかも表示します。';
+    box.querySelector('[data-fortune-text]')!.innerHTML = head + star + yaku;
+    box.classList.toggle('is-hit', f.happou || f.kuroboshi || !!f.yaku);
+    box.hidden = false;
+  };
+
   const toggleExtras = (card: HTMLElement) => {
     const show = new Set(
       [...card.querySelectorAll<HTMLInputElement>('[data-prayers] input:checked')].flatMap((el) => (el.dataset.extras ?? '').split(' ')).filter(Boolean),
@@ -336,6 +372,13 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
     card.querySelector('[data-prayers]')!.addEventListener('change', (e) => {
       (e.currentTarget as HTMLElement).classList.remove('is-invalid');
       toggleExtras(card);
+    });
+    // 生年月日・性別が変わったら、黒星・厄年の目安を出し直す
+    card.addEventListener('input', (e) => {
+      if ((e.target as HTMLInputElement).matches('input[name$="-birthday"], input[name$="-gender"]')) showFortune(card);
+    });
+    card.addEventListener('change', (e) => {
+      if ((e.target as HTMLInputElement).matches('input[name$="-birthday"], input[name$="-gender"]')) showFortune(card);
     });
     card.querySelector('[data-remove]')!.addEventListener('click', () => {
       card.remove();

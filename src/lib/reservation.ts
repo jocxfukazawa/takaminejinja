@@ -202,3 +202,37 @@ export function advanceDates(now = Date.now()): string[] {
     return now < cutoff;
   });
 }
+
+/**
+ * 黒星・八方ふさがり・厄年の目安（事前申し込みのページで、生年月日の下に表示する）。
+ * 高嶺神社では生まれ年（1月1日区切り）で見る。年齢は数え年。
+ * 正確には黒星祈願祭のページの表で確かめてもらう（画面にもそう書く）。
+ */
+
+/** 黒星を見る年（事前申し込みの対象日の年） */
+export const KUROBOSHI_YEAR = Number(ADVANCE_DATES[ADVANCE_DATES.length - 1].slice(0, 4));
+
+const STARS = ['一白水星', '二黒土星', '三碧木星', '四緑木星', '五黄土星', '六白金星', '七赤金星', '八白土星', '九紫火星'];
+
+/** その年の生まれ星（1〜9。例: 1983年 → 8 八白土星、2027年 → 9 九紫火星） */
+export const birthStar = (year: number) => (((11 - (year % 9)) % 9) + 8) % 9 + 1;
+
+/** 本厄の数え年（前厄はその前の年、後厄はその次の年） */
+const YAKU: Record<'男' | '女', number[]> = { 男: [25, 42, 61], 女: [19, 33, 37, 61] };
+
+export function yearFortune(birthYear: number, gender: string, year = KUROBOSHI_YEAR) {
+  const kazoe = year - birthYear + 1;
+  const center = birthStar(year);
+  const star = birthStar(birthYear);
+  // 年盤の中央・北・艮・坤にある星が黒星。中央（その年の星）は八方ふさがり
+  const kuroboshi = [0, 5, 3, 6].map((d) => ((center - 1 + d) % 9) + 1);
+  const ages = gender === '男' || gender === '女' ? YAKU[gender] : [];
+  const yaku = ages.includes(kazoe) ? '本厄' : ages.includes(kazoe - 1) ? '後厄' : ages.includes(kazoe + 1) ? '前厄' : null;
+  return {
+    kazoe,
+    starName: STARS[star - 1],
+    happou: star === center,
+    kuroboshi: kuroboshi.includes(star),
+    yaku: yaku as '前厄' | '本厄' | '後厄' | null,
+  };
+}
