@@ -90,9 +90,9 @@
      * 縦書きの欄に収まる字の大きさ（mm）。長い行は折り返して列が増えることも数に入れる。
      * width：欄の幅、height：1列の長さ、max：いちばん大きい字
      */
-    const fit = (lines, width, height, max, lineHeight) => {
+    const fit = (lines, width, height, max, lineHeight, spacing = 0) => {
       for (let size = max; size > 1.8; size -= 0.1) {
-        const perColumn = Math.floor(height / size);
+        const perColumn = Math.floor(height / (size + spacing));
         const columns = lines.reduce((sum, l) => sum + Math.max(1, Math.ceil([...l].length / perColumn)), 0);
         if (columns * size * lineHeight <= width) return size.toFixed(2);
       }
@@ -103,11 +103,11 @@
      * ご祈願の並べ方。1列に1つずつ書いて 4mm 以上の字で収まればそうする。
      * 多いときは、1列に2つ以上を「　」でつなげて、字を大きいままにする
      */
-    const prayerColumns = (prayers, width, height, max, lineHeight) => {
-      const one = Number(fit(prayers, width, height, max, lineHeight));
+    const prayerColumns = (prayers, width, height, max, lineHeight, spacing) => {
+      const one = Number(fit(prayers, width, height, max, lineHeight, spacing));
       if (one >= 4) return { size: one.toFixed(2), columns: prayers };
       for (let size = max; size > 1.8; size -= 0.1) {
-        const capacity = Math.floor(height / size);
+        const capacity = Math.floor(height / (size + spacing));
         const columns = [];
         for (const p of prayers) {
           const last = columns[columns.length - 1];
@@ -144,7 +144,7 @@
       parts.push(cell(36, 0, 22, 12, 'ご祈願', 'label'));
       parts.push(cell(36, 12, 22, 144,
         (() => {
-          const { size, columns } = prayerColumns(s.prayers, 18, 130, 6, 1.35);
+          const { size, columns } = prayerColumns(s.prayers, 18, 130, 6, 1.35, 0.6);
           return `<div class="v" style="position:absolute;inset:4mm 2mm;font-size:${size}mm;line-height:1.35;font-weight:700;letter-spacing:.6mm;">${columns.map(esc).join('<br>')}</div>`;
         })()));
 

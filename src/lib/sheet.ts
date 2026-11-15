@@ -5,21 +5,6 @@
 
 import { FEE_BASE, eraOf, normalizeDate, normalizeTime } from './reservation';
 
-/** フォームのご祈願 → 申込書での書き方（紙の申込書の言い方にそろえる） */
-const TO_SHEET: Record<string, string> = {
-  '黒星祓（厄除け）': '黒星祓',
-  家内安全: '家内安全',
-  安産祈願: '安産祈願',
-  事業安全: '事業安全',
-  健康安全: '健康安全',
-  '病気（怪我）平癒祈願': '平癒祈願',
-  商売繁盛: '商売繁昌',
-  学業成就: '学業成就',
-  '交通安全（新車祓）': '交通安全',
-  '交通安全（その他）': '交通安全',
-  合格祈願: '合格祈願',
-};
-
 /** この申込書ではなく、別の申込書で受け付けるご祈願 */
 export const SEPARATE_FORM = ['七五三詣', '初宮詣'];
 
@@ -33,7 +18,7 @@ export interface Sheet {
   group: string;
   /** 受付・祈祷日（令和の年・月・日）。郵送などで日付がなければ null */
   date: { year: number; month: number; day: number } | null;
-  /** ご祈願（申込書での書き方。その他のご祈願も含む） */
+  /** ご祈願（フォームで選ばれたまま。その他のご祈願も含む） */
   prayers: string[];
   /** 備考に書く行 */
   notes: string[];
@@ -63,7 +48,8 @@ export function toSheet(row: SheetRow): { sheet: Sheet | null; separate: string[
   const onSheet = prayers.filter((p) => !SEPARATE_FORM.includes(p));
   if (!onSheet.length) return { sheet: null, separate };
 
-  const prayerNames = [...new Set(onSheet.map((p) => TO_SHEET[p] ?? p))];
+  // ご祈願は、フォームで選ばれたものをそのまま書く（「交通安全（新車祓）」なども、かっこまで含めて）
+  const prayerNames = [...new Set(onSheet)];
   const haraobi = text(f['腹帯のお祓い']);
 
   // 初穂料：その方のご祈願1件につき 5,000円。安産祈願で腹帯のお祓いありは 8,000円
