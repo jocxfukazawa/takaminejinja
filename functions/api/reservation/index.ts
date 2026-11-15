@@ -16,7 +16,8 @@ import {
   advanceDates, bookableDates, feeSummary, isClosed, isValidBirthday, storedDate, type Extra,
 } from '../../../src/lib/reservation';
 import {
-  AirtableError, F, closures, createRecords, deleteRecords, isFirstInSlot, missingSettings, takenSlots, type AirtableEnv,
+  AirtableError, F, closures, createRecords, deleteRecords, isFirstInSlot, missingSettings, reservationNoExists, takenSlots,
+  type AirtableEnv,
 } from '../../../src/lib/airtable';
 
 interface Env extends AirtableEnv {
@@ -80,19 +81,21 @@ function wareki(key: string) {
   return `${era[0]}${year === 1 ? '元' : year}年${m}月${d}日`;
 }
 
-const NO_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const randomChars = (n: number) =>
-  [...crypto.getRandomValues(new Uint8Array(n))].map((b) => NO_CHARS[b % NO_CHARS.length]).join('');
-
-/** 予約番号（例: W261114-7KQ2）。同じ予約で一緒に受ける方の行に同じ番号を入れる */
-function newReservationNo(now = Date.now()) {
-  const jst = new Date(now + 9 * 60 * 60 * 1000).toISOString();
-  const day = jst.slice(2, 10).replace(/-/g, '');
-  return `W${day}-${randomChars(4)}`;
+/**
+ * 予約番号・申込番号（数字だけ）。同じ予約で一緒に受ける方の行には同じ番号を入れる。
+ * 事前申し込みは受付で口頭で伝えてもらうので4桁、ご祈祷の予約は6桁（桁数で見分けられる）。
+ * 先頭が0にならない範囲から選び、Airtable に同じ番号がないことを確かめてから使う。
+ */
+async function newNumber(env: Env, digits: number) {
+  const min = 10 ** (digits - 1);
+  const span = 9 * min;
+  for (let i = 0; i < 10; i++) {
+    const [r] = crypto.getRandomValues(new Uint32Array(1));
+    const no = String(min + (r % span));
+    if (!(await reservationNoExists(env, no))) return no;
+  }
+  throw new Error('空いている番号が見つかりませんでした');
 }
-
-/** 事前申し込みの申込番号（例: K-7Q2M）。当日、受付で伝えてもらうので短くする */
-const newAdvanceNo = () => `K-${randomChars(4)}`;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const GENDERS = ['男', '女', '回答しない'];
@@ -226,7 +229,13 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   // ── Airtable へ書き込む（1人1行。項目名は Google フォームから取り込んでいたときと同じ） ──
   // 同じ予約の行には同じ予約番号を入れ、最初の方（代表者）の行に「代表者」のチェックを入れる
-  const reservationNo = advance ? newAdvanceNo() : newReservationNo();
+  let reservationNo: string;
+  try {
+    reservationNo = await newNumber(env, advance ? 4 : 6);
+  } catch (e) {
+    console.error('reservation: 番号を決められなかった', e);
+    return fail(UNAVAILABLE, 502, cause('番号の発行', e));
+  }
   // 予約全体の初穂料（クレジットカードのお支払いの案内で、予約につき1回だけ伝える）
   const fee = feeSummary(people);
 

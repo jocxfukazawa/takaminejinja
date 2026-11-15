@@ -9,7 +9,7 @@ import FixedPage from '../../../layouts/FixedPage.astro';
 <script>
   // 送信のあとに渡された申込番号を大きく表示する（メールにも同じ番号が入る）
   const no = new URLSearchParams(location.search).get('no') ?? '';
-  if (/^K-[A-Z2-9]{4}$/.test(no)) {
+  if (/^\d{4}$/.test(no)) {
     const box = document.getElementById('js-advance-no')!;
     box.querySelector('strong')!.textContent = no;
     box.hidden = false;

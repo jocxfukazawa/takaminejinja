@@ -150,6 +150,13 @@ export async function closures(env: AirtableEnv): Promise<Closure[]> {
     .filter((c): c is Closure => c.date !== null);
 }
 
+/** その予約番号・申込番号の行がすでにあるか */
+export async function reservationNoExists(env: AirtableEnv, no: string) {
+  const q = new URLSearchParams({ filterByFormula: `{予約番号} = '${no.replace(/\D/g, '')}'`, maxRecords: '1', 'fields[]': '予約番号' });
+  const data = (await call(env, `${tableUrl(env, env.AIRTABLE_TABLE!)}?${q}`)) as { records: AirtableRecord[] };
+  return data.records.length > 0;
+}
+
 /** Airtable は1回に10行までしか作れない・消せないので、10行ずつに分ける */
 const chunks = <T,>(list: T[]) => Array.from({ length: Math.ceil(list.length / 10) }, (_, i) => list.slice(i * 10, i * 10 + 10));
 
