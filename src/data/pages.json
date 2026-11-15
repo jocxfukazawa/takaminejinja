@@ -25,7 +25,7 @@
     "description": "高嶺神社では、WEBからでもご祈祷の予約を承っております。",
     "headerTitle": "ご祈祷の予約",
     "headerImg": "/wp-content/uploads/2023/08/reservation_mv.png",
-    "html": "<div class=\"p-entry__body p-entry__body--page\">\n<div class=\"googleform-wrapper\"><iframe frameborder=\"0\" loading=\"lazy\" marginheight=\"0\" marginwidth=\"0\" src=\"https://docs.google.com/forms/d/e/1FAIpQLSfNnPDENu0bD-8kYr78VR8Vs5MvEMSQrUW1Dm9iJiOcPl2wTQ/viewform?embedded=true\">読み込んでいます…</iframe></div>\n</div>"
+    "html": "<div class=\"p-entry__body p-reserve-intro\">\n<p>ご祈祷は予約制となっておりますので、下のフォームまたはお電話でご予約をお願いいたします（予約不要の日を除く）。</p>\n<ul>\n<li><strong>フォームからの送信の時点では仮予約です。</strong>当神社で確認のうえ、ご予約確定のメールをお送りします。確定のメールが届くまでは仮予約のままですので、ご注意ください。</li>\n<li>受付：翌日から承ります。翌日のご予約は、前日の午後8時までにお願いいたします。</li>\n<li>キャンセル：直前までキャンセルできます。キャンセルされる場合は、メールまたはお電話でご連絡ください。</li>\n<li>さまざまな事情でご参拝が難しい場合は、郵送でのご祈祷も承ります。ご祈祷の後、御札・御守を郵送いたします。</li>\n</ul>\n<p>予約・キャンセルができない場合や、その他のお問い合わせは、TEL. 0791-52-6464（つながらない場合は 0791-52-0666）までお願いいたします。お電話でのご予約も承っております。</p>\n</div>"
   },
   "contact": {
     "title": "お問い合わせ",
@@ -61,5 +61,28 @@
     "headerTitle": "ブログ",
     "headerImg": "/wp-content/uploads/2023/06/blog_mv.png",
     "html": ""
+  },
+  "reservation-thanks": {
+    "title": "ご祈祷の予約（受付）",
+    "description": "ご祈祷の仮予約を受け付けました。",
+    "headerTitle": "ご祈祷の予約",
+    "headerImg": "/wp-content/uploads/2023/08/reservation_mv.png",
+    "narrow": true,
+    "html": "<div class=\"p-entry__body\">\n<strong>ご祈祷の仮予約を受け付けました。</strong><br/>\nご入力いただいたメールアドレスに、受付のメールをお送りしました。<br/>\n当神社で確認のうえ、<strong>改めてご予約確定のメールをお送りします。</strong>確定のメールが届くまでは仮予約ですので、ご注意ください。<br/>\n受付のメールが届かない場合は、迷惑メールのフォルダもご確認ください。それでも見つからない場合は、お電話（0791-52-6464）でご連絡ください。\n</div>"
+  },
+  "reservation-advance": {
+    "title": "ご祈祷の事前申し込み（年始・黒星祈願祭）",
+    "description": "1月1日〜3日、黒星祈願祭（1月9日〜11日・15日）のご祈祷の事前申し込みです。",
+    "headerTitle": "ご祈祷の事前申し込み",
+    "headerImg": "/wp-content/uploads/2023/08/reservation_mv.png",
+    "html": "<div class=\"p-entry__body p-reserve-intro\">\n<p>1月1日〜3日と、黒星祈願祭の期間（1月9日〜11日・15日）は、ご祈祷のご予約を承っておりません。当日お越しになった順に、ご祈祷をご案内いたします。</p>\n<p>この期間にご祈祷を受けられる方は、このページから<strong>事前にお申し込み</strong>いただけます。お名前を記した御札や御守と、申し込み内容が印字された申込書をご用意してお待ちしておりますので、当日の受付が早く済みます。</p>\n<ul>\n<li><strong>時刻のご予約ではありません。</strong>当日は、事前にお申し込みの方も、お越しになった順にご案内いたします。</li>\n<li>お申し込みの締め切りは、<strong>ご来社予定日の前日の午後5時</strong>です。</li>\n<li>お申し込みの後、「申込番号」の入ったメールをお送りします。当日は、受付で申込番号をお伝えください。</li>\n<li>ご来社予定日を変更される場合や、お越しになれなくなった場合は、メールまたはお電話でご連絡ください。</li>\n</ul>\n<p>お申し込みをされなくても、当日直接お越しいただければご祈祷をお受けいただけます。<br/>お問い合わせは、TEL. 0791-52-6464（つながらない場合は 0791-52-0666）までお願いいたします。</p>\n</div>"
+  },
+  "reservation-advance-thanks": {
+    "title": "ご祈祷の事前申し込み（受付）",
+    "description": "ご祈祷の事前申し込みを受け付けました。",
+    "headerTitle": "ご祈祷の事前申し込み",
+    "headerImg": "/wp-content/uploads/2023/08/reservation_mv.png",
+    "narrow": true,
+    "html": "<div class=\"p-entry__body\">\n<strong>ご祈祷の事前申し込みを受け付けました。</strong><br/>\nご入力いただいたメールアドレスに、申込番号の入ったメールをお送りしました。<br/>\n当日は、受付で<strong>申込番号</strong>をお伝えください（メールの画面を見せていただいても構いません）。<br/>\nご祈祷は、お越しになった順にご案内いたします。<br/>\nメールが届かない場合は、迷惑メールのフォルダもご確認ください。それでも見つからない場合は、お電話（0791-52-6464）でご連絡ください。\n</div>"
   }
 }
