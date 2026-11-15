@@ -179,7 +179,8 @@
           const [size, lines] = fitsOneColumn || s.address.length < 2
             ? [a, oneLine]
             : [fit(s.address, 13, 118, 5.2, 1.15), s.address];
-          return `<div class="v val" style="padding:3mm .5mm;font-size:${size}mm;line-height:1.15;height:100%;">${lines.map(esc).join('<br>')}</div>`;
+          // 縦書きの列は欄の端に寄るので、外側の箱で左右の中央に置く（2行のときは2列のまとまりごと）
+          return `<div style="display:flex;justify-content:center;height:100%;padding:3mm .5mm;"><div class="v val" style="font-size:${size}mm;line-height:1.15;">${lines.map(esc).join('<br>')}</div></div>`;
         })()));
       // 氏名とふりがな（縦書きの列は欄の右に寄るので、外側の箱で左右の中央に置く）
       parts.push(cell(86, 30, 5, 80, `<div style="display:flex;justify-content:center;height:100%;padding:2mm 0;"><div class="v val" style="font-size:${fit([s.kana], 4.6, 76, 3.8, 1.1)}mm;line-height:1.1;">${esc(s.kana)}</div></div>`));
