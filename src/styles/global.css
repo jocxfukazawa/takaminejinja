@@ -775,8 +775,8 @@ time.p-entry__date { color: var(--color-gray-text); font-size: 12px; }
 /* 黒星祈願祭のページ：事前申し込みへのボタン */
 .p-kuroboshi-advance { margin-top: 12px; }
 .p-kuroboshi-advance .p-btn {
-  display: block; width: 100%; max-width: 280px; min-width: 0; height: auto; padding: 12px 10px;
-  color: #fff; text-align: center; line-height: 1.5; text-decoration: none; white-space: nowrap;
+  display: block; width: 100%; max-width: 340px; min-width: 0; height: auto; padding: 12px 14px;
+  color: #fff; text-align: center; line-height: 1.5; text-decoration: none;
 }
 .p-kuroboshi-advance .p-btn:hover { color: #fff; }
 
@@ -785,5 +785,14 @@ time.p-entry__date { color: var(--color-gray-text); font-size: 12px; }
 .p-reserve-advance p + p { margin-top: .6em; }
 .p-reserve-advance__title { font-family: var(--font-mincho); font-size: 17px; font-weight: 600; }
 .p-reserve-advance__btn { margin-top: 14px !important; }
-.p-reserve-advance__btn .p-btn { display: block; width: 100%; max-width: 280px; min-width: 0; padding: 12px 10px; color: #fff; text-align: center; text-decoration: none; white-space: nowrap; }
+.p-reserve-advance__btn .p-btn { display: block; width: 100%; max-width: 340px; min-width: 0; padding: 12px 14px; color: #fff; text-align: center; text-decoration: none; }
 .p-reserve-advance__btn .p-btn:hover { color: #fff; }
+/* 「年始と黒星祈願祭の／事前申し込みはこちら」の区切りでだけ折り返す */
+.p-kuroboshi-advance .p-btn, .p-reserve-advance__btn .p-btn { word-break: keep-all; overflow-wrap: anywhere; }
+/* 小さいスマホでは、黒星祈願祭のページの表の中のボタンが細くなるので、字と余白を少し小さくする */
+@media (max-width: 400px) {
+  .p-kuroboshi-advance .p-btn { padding: 10px 6px; font-size: 12px; }
+}
+@media (max-width: 360px) {
+  .p-kuroboshi-advance .p-btn { padding: 10px 4px; font-size: 11px; }
+}
