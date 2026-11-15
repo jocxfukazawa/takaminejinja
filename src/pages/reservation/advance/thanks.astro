@@ -1,0 +1,17 @@
+---
+import FixedPage from '../../../layouts/FixedPage.astro';
+---
+<FixedPage slug="reservation-advance-thanks">
+  <Fragment slot="head"><meta name="robots" content="noindex" /></Fragment>
+  <p class="p-advance-no" id="js-advance-no" hidden>申込番号<strong></strong></p>
+</FixedPage>
+
+<script>
+  // 送信のあとに渡された申込番号を大きく表示する（メールにも同じ番号が入る）
+  const no = new URLSearchParams(location.search).get('no') ?? '';
+  if (/^K-[A-Z2-9]{4}$/.test(no)) {
+    const box = document.getElementById('js-advance-no')!;
+    box.querySelector('strong')!.textContent = no;
+    box.hidden = false;
+  }
+</script>

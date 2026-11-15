@@ -111,6 +111,8 @@ export interface Closure {
 
 /** その時刻が受付停止にあたるか */
 export function isClosed(date: string, time: string, closures: Closure[]): boolean {
+  // 来られた順にご案内する日（事前申し込みの日）は、通常の予約を受け付けない
+  if (ADVANCE_DATES.includes(date)) return true;
   return closures.some(
     (c) => c.date === date && (!c.start || time >= c.start) && (!c.end || time < c.end),
   );
@@ -176,4 +178,27 @@ export function feeSummary(people: { prayerNames: string[]; haraobi?: string }[]
   if (children) items.unshift({ label: children > 1 ? `${SHICHIGOSAN}（ごきょうだい${children}名）` : SHICHIGOSAN, fee: shichigosanFee(children) });
   const total = items.reduce((sum, i) => sum + i.fee, 0);
   return { total, text: [...items.map((i) => `${i.label}　${yen(i.fee)}`), `合計　${yen(total)}以上お志`].join('\n') };
+}
+
+/**
+ * 予約を受けずに、来られた順にご案内する日（年始と黒星祈願祭）。
+ * この日は通常の予約（30分ごとの枠）を受け付けず、代わりに「事前申し込み」を受け付ける。
+ * 毎年、日付を書き換える。
+ */
+export const ADVANCE_DATES = [
+  '2027-01-01', '2027-01-02', '2027-01-03',
+  '2027-01-09', '2027-01-10', '2027-01-11', '2027-01-15',
+];
+
+/** 事前申し込みの締め切り（ご来社予定日の前日のこの時刻まで） */
+export const ADVANCE_CUTOFF_HOUR = 17;
+
+/** 今、事前申し込みを受け付けている日（締め切り前の日） */
+export function advanceDates(now = Date.now()): string[] {
+  return ADVANCE_DATES.filter((key) => {
+    const [y, m, d] = key.split('-').map(Number);
+    // 前日の締め切り時刻（日本時間）を、UTC のミリ秒にする
+    const cutoff = Date.UTC(y, m - 1, d - 1, ADVANCE_CUTOFF_HOUR - 9);
+    return now < cutoff;
+  });
 }

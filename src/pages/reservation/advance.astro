@@ -1,0 +1,11 @@
+---
+import FixedPage from '../../layouts/FixedPage.astro';
+import ReservationForm from '../../components/ReservationForm.astro';
+---
+<FixedPage slug="reservation-advance" narrow>
+  <Fragment slot="head">
+    <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+  </Fragment>
+
+  <ReservationForm advance />
+</FixedPage>

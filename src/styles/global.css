@@ -760,3 +760,7 @@ time.p-entry__date { color: var(--color-gray-text); font-size: 12px; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+/* 事前申し込みの申込番号 */
+.p-advance-no { margin: 30px auto 0; padding: 20px; max-width: 360px; border: 2px solid var(--color-red); text-align: center; font-size: 15px; }
+.p-advance-no strong { display: block; margin-top: 6px; font-size: 34px; letter-spacing: .12em; color: var(--color-red); }

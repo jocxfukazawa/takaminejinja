@@ -13,7 +13,7 @@
 
 import {
   MAX_PERSONS, PHONE, PRAYERS, PRAYER_OTHER, SLOT_TIMES,
-  bookableDates, feeSummary, isClosed, isValidBirthday, storedDate, type Extra,
+  advanceDates, bookableDates, feeSummary, isClosed, isValidBirthday, storedDate, type Extra,
 } from '../../../src/lib/reservation';
 import {
   AirtableError, F, closures, createRecords, deleteRecords, isFirstInSlot, missingSettings, takenSlots, type AirtableEnv,
@@ -80,14 +80,19 @@ function wareki(key: string) {
   return `${era[0]}${year === 1 ? '元' : year}年${m}月${d}日`;
 }
 
+const NO_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const randomChars = (n: number) =>
+  [...crypto.getRandomValues(new Uint8Array(n))].map((b) => NO_CHARS[b % NO_CHARS.length]).join('');
+
 /** 予約番号（例: W261114-7KQ2）。同じ予約で一緒に受ける方の行に同じ番号を入れる */
 function newReservationNo(now = Date.now()) {
   const jst = new Date(now + 9 * 60 * 60 * 1000).toISOString();
   const day = jst.slice(2, 10).replace(/-/g, '');
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  const random = [...crypto.getRandomValues(new Uint8Array(4))].map((b) => chars[b % chars.length]).join('');
-  return `W${day}-${random}`;
+  return `W${day}-${randomChars(4)}`;
 }
+
+/** 事前申し込みの申込番号（例: K-7Q2M）。当日、受付で伝えてもらうので短くする */
+const newAdvanceNo = () => `K-${randomChars(4)}`;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const GENDERS = ['男', '女', '回答しない'];
@@ -193,8 +198,17 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     people.push({ ...p, prayerNames, extras });
   }
 
-  // ── 日時の確認（来社のみ。郵送は枠を使わない） ──
-  const visiting = v.method === '来社';
+  // ── 日時の確認 ──
+  // 事前申し込み（年始・黒星祈願祭）：来社予定日だけを受け取り、時刻の枠は使わない
+  const advance = clean(form.get('mode')) === 'advance';
+  if (advance) {
+    if (v.method !== '来社') return fail('事前申し込みは、神社にお越しになる方が対象です。');
+    if (!advanceDates().includes(v.date)) {
+      return fail('選ばれた日の事前申し込みは締め切りました。当日、直接お越しください。', 400, { refresh: true });
+    }
+  }
+  // 通常の予約（来社のみ。郵送は枠を使わない）
+  const visiting = !advance && v.method === '来社';
   const slot = `${v.date} ${v.time}`;
   if (visiting) {
     if (!bookableDates().includes(v.date) || !SLOT_TIMES.includes(v.time)) {
@@ -212,7 +226,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   // ── Airtable へ書き込む（1人1行。項目名は Google フォームから取り込んでいたときと同じ） ──
   // 同じ予約の行には同じ予約番号を入れ、最初の方（代表者）の行に「代表者」のチェックを入れる
-  const reservationNo = newReservationNo();
+  const reservationNo = advance ? newAdvanceNo() : newReservationNo();
   // 予約全体の初穂料（クレジットカードのお支払いの案内で、予約につき1回だけ伝える）
   const fee = feeSummary(people);
 
@@ -225,6 +239,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return same >= 0 ? `父母の名前：（${same + 1}人目と同じ）` : `父母の名前：\n${p.parents}`;
   };
   const details = [
+    ...(advance ? [`申込番号：${reservationNo}`, `ご来社予定日：${storedDate(v.date)}`] : []),
     ...(visiting ? [`ご祈祷希望日時：${storedDate(v.date)} ${v.time}`] : []),
     ...people.flatMap((p, n) => [
       ...(multiple ? ['', `【${n + 1}人目${n === 0 ? '（代表の方）' : ''}】`] : []),
@@ -249,18 +264,18 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     `初穂料について：${v.payment}`,
     `初穂料（目安）：\n${fee.text}`,
     `連絡事項：${v.message}`,
-    ...(multiple ? ['', `予約番号：${reservationNo}`] : []),
+    ...(multiple && !advance ? ['', `予約番号：${reservationNo}`] : []),
   ].join('\n');
   const rows = people.map((p, n) => {
     const fields: Record<string, unknown> = {
       名前: `${p.sei}　${p.mei}`,
-      [F.status]: '仮予約',
-      受付経路: 'Webフォーム',
+      [F.status]: advance ? '事前申込' : '仮予約',
+      受付経路: advance ? '事前申込' : 'Webフォーム',
       予約番号: reservationNo,
       代表者: n === 0,
       予約の初穂料合計: fee.total,
       初穂料の内訳: fee.text,
-      [F.date]: visiting ? storedDate(v.date) : '',
+      [F.date]: visiting || advance ? storedDate(v.date) : '',
       [F.time]: visiting ? v.time : '',
       ふりがな: `${p.seiKana}　${p.meiKana}`,
       名前の特殊文字: p.special,
@@ -307,5 +322,5 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     }
   }
 
-  return json({ ok: true });
+  return json(advance ? { ok: true, no: reservationNo } : { ok: true });
 };
