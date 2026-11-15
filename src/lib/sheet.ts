@@ -24,6 +24,8 @@ export interface Sheet {
   notes: string[];
   /** 初穂料（円）。0 なら空欄 */
   fee: number;
+  /** 車名とナンバー（1行ずつ）。新車祓でなければ空 */
+  car: string[];
   name: string;
   kana: string;
   gender: string;
@@ -61,8 +63,8 @@ export function toSheet(row: SheetRow): { sheet: Sheet | null; separate: string[
   if (time) notes.push(`${time.replace(/^0/, '')}〜`);
   if (text(f['祈祷方法']) === '郵送') notes.push('郵送');
   if (text(f['受付経路']) === '事前申込') notes.push('事前申込');
-  const car = text(f['車名・ナンバー']).replace(/\s*\n\s*/g, '　');
-  if (car) notes.push(`ナンバー：${car}`);
+  // 車名とナンバーは祝詞で読み上げるので、備考ではなく専用の欄に横書きで大きく書く
+  const car = text(f['車名・ナンバー']).split(/\s*\n\s*/).filter(Boolean);
   if (haraobi === 'あり') notes.push('腹帯のお祓い');
   const special = text(f['名前の特殊文字']);
   if (special) notes.push(`特殊文字：${special}`);
@@ -87,6 +89,7 @@ export function toSheet(row: SheetRow): { sheet: Sheet | null; separate: string[
       prayers: prayerNames,
       notes,
       fee,
+      car,
       name: text(f['名前']),
       kana: text(f['ふりがな']),
       gender: text(f['性別']),
