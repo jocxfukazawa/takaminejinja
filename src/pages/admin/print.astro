@@ -17,7 +17,7 @@
   <!-- どのパソコンでも同じ字形・字幅で印刷されるよう、日本語のフォントを読み込む -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500&family=Noto+Serif+JP:wght@500;700&display=block" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@500;700&display=block" />
   <style is:global>
     @page { size: 128mm 182mm; margin: 0; }
     * { box-sizing: border-box; }
@@ -41,7 +41,7 @@
     }
     .sheet__title { position: absolute; left: 0; right: 0; top: 7mm; text-align: center; font-size: 7mm; font-weight: 700; letter-spacing: 3mm; }
     .sheet__title span { border-bottom: .4mm solid #111; padding: 0 1mm .5mm 4mm; }
-    .sheet__no { position: absolute; right: 6mm; top: 9mm; font-family: "Noto Sans JP", sans-serif; font-size: 4.2mm; letter-spacing: .3mm; }
+    .sheet__no { position: absolute; right: 6mm; top: 9mm; font-size: 4.2mm; letter-spacing: .3mm; }
     .sheet__copy { position: absolute; left: 6mm; top: 6mm; width: 11mm; height: 11mm; border: .3mm solid #111; border-radius: 50%; text-align: center; font-size: 6mm; line-height: 10mm; }
     .sheet__shrine { position: absolute; left: 4mm; bottom: 12mm; writing-mode: vertical-rl; font-size: 7mm; font-weight: 700; letter-spacing: 5mm; }
     .sheet__table { position: absolute; left: 16mm; top: 20mm; width: 106mm; height: 156mm; border: .35mm solid #111; }
@@ -50,7 +50,8 @@
     .v { writing-mode: vertical-rl; text-orientation: mixed; }
     .num { text-combine-upright: all; }
     .label { font-size: 2.6mm; font-weight: 700; display: flex; align-items: center; justify-content: center; letter-spacing: .6mm; }
-    .val { font-family: "Noto Sans JP", "Hiragino Sans", "Yu Gothic", sans-serif; }
+    /* 書き入れる文字も、申込書の文字と同じ明朝体にする（太くすると画数の多い字が潰れるので標準の太さ） */
+    .val { font-weight: 500; }
         @media print {
       body { background: #fff; }
       .controls { display: none; }
@@ -162,7 +163,7 @@
       parts.push(cell(91, 30, 10, 126, `<div class="v val" style="padding:2mm 1mm;font-size:3.4mm;line-height:1.3;height:100%;">${esc(s.address)}</div>`));
       // 氏名とふりがな
       parts.push(cell(86, 30, 5, 80, `<div class="v val" style="padding:2mm 0;font-size:2.8mm;width:100%;display:flex;justify-content:center;">${esc(s.kana)}</div>`));
-      parts.push(cell(74, 30, 12, 72, `<div class="v val" style="padding:4mm 0;font-size:6mm;font-weight:600;width:100%;display:flex;justify-content:center;letter-spacing:1mm;">${esc(s.name)}</div>`));
+      parts.push(cell(74, 30, 12, 72, `<div class="v val" style="padding:4mm 0;font-size:6mm;width:100%;display:flex;justify-content:center;letter-spacing:1mm;">${esc(s.name)}</div>`));
       parts.push(cell(74, 102, 12, 8, esc(s.gender === '回答しない' ? '' : s.gender), 'val', 'font-size:4mm;text-align:center;padding-top:1mm;'));
       // 会社（今回は空欄）
       parts.push(cell(69, 30, 5, 80));
