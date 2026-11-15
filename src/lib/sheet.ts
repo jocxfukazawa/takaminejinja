@@ -5,14 +5,7 @@
 
 import { FEE_BASE, eraOf, normalizeDate, normalizeTime } from './reservation';
 
-/** 申込書の祈願の欄（右の列から、上から順）。この並びで印刷する */
-export const SHEET_PRAYERS = [
-  ['黒星祓', '事業安全', '商売繁昌', '交通安全'],
-  ['家内安全', '健康安全', '学業成就', '合格祈願'],
-  ['安産祈願', '平癒祈願', '焚き上げ祭', '人形供養祭'],
-];
-
-/** フォームのご祈願 → 申込書の欄 */
+/** フォームのご祈願 → 申込書での書き方（紙の申込書の言い方にそろえる） */
 const TO_SHEET: Record<string, string> = {
   '黒星祓（厄除け）': '黒星祓',
   家内安全: '家内安全',
@@ -40,8 +33,8 @@ export interface Sheet {
   group: string;
   /** 受付・祈祷日（令和の年・月・日）。郵送などで日付がなければ null */
   date: { year: number; month: number; day: number } | null;
-  /** ○を付ける欄 */
-  circled: string[];
+  /** ご祈願（申込書での書き方。その他のご祈願も含む） */
+  prayers: string[];
   /** 備考に書く行 */
   notes: string[];
   /** 初穂料（円）。0 なら空欄 */
@@ -70,8 +63,7 @@ export function toSheet(row: SheetRow): { sheet: Sheet | null; separate: string[
   const onSheet = prayers.filter((p) => !SEPARATE_FORM.includes(p));
   if (!onSheet.length) return { sheet: null, separate };
 
-  const circled = [...new Set(onSheet.map((p) => TO_SHEET[p]).filter(Boolean))];
-  const others = onSheet.filter((p) => !TO_SHEET[p]);
+  const prayerNames = [...new Set(onSheet.map((p) => TO_SHEET[p] ?? p))];
   const haraobi = text(f['腹帯のお祓い']);
 
   // 初穂料：その方のご祈願1件につき 5,000円。安産祈願で腹帯のお祓いありは 8,000円
@@ -85,7 +77,6 @@ export function toSheet(row: SheetRow): { sheet: Sheet | null; separate: string[
   const car = text(f['車名・ナンバー']).replace(/\s*\n\s*/g, '　');
   if (car) notes.push(`ナンバー：${car}`);
   if (haraobi === 'あり') notes.push('腹帯のお祓い');
-  for (const o of others) notes.push(o);
   const special = text(f['名前の特殊文字']);
   if (special) notes.push(`特殊文字：${special}`);
   const pay = text(f['納入方法']);
@@ -106,7 +97,7 @@ export function toSheet(row: SheetRow): { sheet: Sheet | null; separate: string[
       no: text(f['予約番号']),
       group: text(f['予約グループ']),
       date: date && dateKey ? { year: date.year, month: Number(dateKey.slice(5, 7)), day: Number(dateKey.slice(8, 10)) } : null,
-      circled,
+      prayers: prayerNames,
       notes,
       fee,
       name: text(f['名前']),
