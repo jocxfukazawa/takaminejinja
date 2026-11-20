@@ -796,3 +796,21 @@ time.p-entry__date { color: var(--color-gray-text); font-size: 12px; }
 @media (max-width: 360px) {
   .p-kuroboshi-advance .p-btn { padding: 10px 4px; font-size: 11px; }
 }
+
+/* 予約フォーム：父母のお名前（父・母ごとに、お名前とふりがな） */
+.p-reserve__parent { display: flex; align-items: flex-start; gap: 10px; }
+.p-reserve__parent + .p-reserve__parent { margin-top: 10px; }
+.p-reserve__parent-label { flex: none; width: 1.6em; padding-top: 9px; font-weight: 600; }
+.p-reserve__parent .p-reserve__pair { flex: 1; min-width: 0; }
+.p-reserve__parent .p-reserve__pair label span { min-width: 4em; }
+
+/* ご祈祷を受ける方の欄の注意（七五三詣・初宮詣で親の名前を書かないように） */
+.p-reserve__notice {
+  margin: 12px 0 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-red);
+  background: #fff8f8;
+  font-size: 14px;
+  line-height: 1.9;
+}
+.p-reserve__notice strong { color: var(--color-red); }

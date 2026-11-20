@@ -4,12 +4,14 @@
  *   GET /api/admin/sheets?date=2027-01-10   その日の予約・事前申し込み（キャンセルを除く）
  *   GET /api/admin/sheets?no=W000121        その予約番号の予約（同じ予約グループのご家族も）
  *
+ * sheets は普通の祈祷申込書、children は七五三詣・初宮詣の申込書（どちらも1人1枚）。
+ *
  * Cloudflare Access のログインを通ってきたときだけ答える（src/lib/access.ts）。
  */
 
 import { accessUser, type AccessEnv } from '../../../src/lib/access';
 import { isConfigured, listRows, type AirtableEnv } from '../../../src/lib/airtable';
-import { toSheet } from '../../../src/lib/sheet';
+import { childFees, toChildSheets, toSheet } from '../../../src/lib/sheet';
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -20,7 +22,7 @@ const json = (body: unknown, status = 200) =>
 const FIELDS = [
   '予約番号', '予約グループ', '代表者', '予約ステータス', '受付経路', '御祈祷日', '御祈祷時刻', '祈祷方法',
   '名前', 'ふりがな', '名前の特殊文字', '性別', '生年月日', '郵便番号', '住所', '建物名等', '電話番号',
-  '御祈祷内容', '腹帯のお祓い', '車名・ナンバー', '納入方法',
+  '御祈祷内容', '父母の名前', '腹帯のお祓い', '車名・ナンバー', '納入方法',
 ];
 
 export const onRequestGet: PagesFunction<AirtableEnv & AccessEnv> = async ({ request, env }) => {
@@ -41,17 +43,17 @@ export const onRequestGet: PagesFunction<AirtableEnv & AccessEnv> = async ({ req
   }
 
   try {
-    const rows = await listRows(env, { filterByFormula: formula, 'fields[]': FIELDS, 'sort[0][field]': '予約番号' });
-    const sheets = [];
-    const separate = [];
-    for (const row of rows) {
-      const { sheet, separate: other } = toSheet(row);
-      if (sheet) sheets.push(sheet);
-      if (other.length) {
-        separate.push({ no: String(row.fields['予約番号'] ?? ''), name: String(row.fields['名前'] ?? ''), prayers: other });
-      }
+    const list = (filterByFormula: string) => listRows(env, { filterByFormula, 'fields[]': FIELDS, 'sort[0][field]': '予約番号' });
+    let rows = await list(formula);
+    // ご家族のお一人の番号で探したときも、同じ予約のご家族をまとめて出す（ごきょうだいの初穂料を正しく書くため）
+    const group = String(rows.find((r) => r.fields['予約番号'] === no)?.fields['予約グループ'] ?? '');
+    if (/^W\d{6}$/.test(no) && /^W\d{6}$/.test(group) && group !== no) {
+      rows = await list(`AND(${web}, OR({予約番号} = '${group}', {予約グループ} = '${group}'))`);
     }
-    return json({ ok: true, sheets, separate });
+    const sheets = rows.map((row) => toSheet(row).sheet).filter((s) => s != null);
+    // 七五三詣・初宮詣は別の形の申込書（ごきょうだいの初穂料は、年上の方の1枚にまとめて書く）
+    const children = childFees(rows.flatMap(toChildSheets));
+    return json({ ok: true, sheets, children });
   } catch (e) {
     console.error('admin/sheets: Airtable の読み込みに失敗', e);
     return json({ ok: false, error: 'Airtable を読み込めませんでした。' }, 502);

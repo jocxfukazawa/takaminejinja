@@ -181,7 +181,10 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       birthday: clean(get('birthday')),
       prayerOther: clean(get('prayer-other')),
       haraobi: clean(get('haraobi')),
-      parents: cleanMultiline(get('parents')),
+      father: clean(get('father')),
+      fatherKana: clean(get('father-kana')),
+      mother: clean(get('mother')),
+      motherKana: clean(get('mother-kana')),
       car: cleanMultiline(get('car')),
     };
     const personRequired: [string, string][] = [
@@ -191,7 +194,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     for (const [value, label] of personRequired) {
       if (!value) return fail(`「${label}」を入力してください。${who}`);
     }
-    if (Object.entries(p).some(([k, s]) => s.length > (['parents', 'car'].includes(k) ? 1000 : 200))) {
+    if (Object.entries(p).some(([k, s]) => s.length > (k === 'car' ? 1000 : 200))) {
       return fail(`入力された内容が長すぎます。${who}`);
     }
     if (!GENDERS.includes(p.gender)) return fail(`性別を選んでください。${who}`);
@@ -204,9 +207,18 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const prayerNames = chosen.map((c) => (c === PRAYER_OTHER ? p.prayerOther : c));
     const extras = new Set<Extra>(chosen.flatMap((c) => PRAYERS.find((x) => x.name === c)?.extras ?? []));
     if (extras.has('haraobi') && !['あり', 'なし'].includes(p.haraobi)) return fail(`腹帯のお祓いの有無を選んでください。${who}`);
-    if (extras.has('parents') && !p.parents) return fail(`父母のお名前を入力してください。${who}`);
+    if (extras.has('parents')) {
+      if (!p.father && !p.mother) return fail(`父母のお名前を入力してください（どちらかお一人でも構いません）。${who}`);
+      if (p.father && !p.fatherKana) return fail(`父のお名前のふりがなを入力してください。${who}`);
+      if (p.mother && !p.motherKana) return fail(`母のお名前のふりがなを入力してください。${who}`);
+    }
+    // 父母のお名前は、Airtable の「父母の名前」に今までと同じ形でまとめて入れる（例: 父　高嶺　太郎（たかみね　たろう））
+    const parents = [
+      ...(p.father ? [`父　${p.father}（${p.fatherKana}）`] : []),
+      ...(p.mother ? [`母　${p.mother}（${p.motherKana}）`] : []),
+    ].join('\n');
     if (extras.has('car') && !p.car) return fail(`車名とナンバーを入力してください。${who}`);
-    people.push({ ...p, prayerNames, extras });
+    people.push({ ...p, parents, prayerNames, extras });
   }
 
   // ── 日時の確認 ──
