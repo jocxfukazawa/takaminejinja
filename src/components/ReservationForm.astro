@@ -5,7 +5,7 @@
  * advance を付けると「事前申し込み」になる：時刻は選ばず、ご来社予定日だけを選ぶ。
  * 黒星祈願祭など、予約を受けずに来られた順にご案内する日のためのもの（src/lib/reservation.ts の ADVANCE_DATES）
  *
- * reception を付けると「当日受付」になる：黒星祈願祭の当日、参拝の方がその場で入力する（/reception/）。
+ * reception を付けると「当日受付」になる：Airtable の「当日受付の日」の日に、参拝の方がその場で入力する（/reception/）。
  * 日時・メールアドレス・納め方は聞かず、初穂料は計算した金額を入れておき、増やせるようにする。
  * 送信すると受付が確定し、申込書がプリンターから出る
  */
@@ -272,8 +272,10 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
   const form = document.getElementById('js-reserve-form') as HTMLFormElement;
   /** 事前申し込み（時刻を選ばない）かどうか */
   const advance = form.dataset.mode === 'advance';
-  /** 当日受付（黒星祈願祭の当日、その場で受付が確定する） */
+  /** 当日受付（その場で受付が確定する） */
   const reception = form.dataset.mode === 'reception';
+  /** 当日受付で、今日が黒星祈願祭の日か（黒星・厄年の目安を出す） */
+  let kuroboshiDay = false;
   const submitLabel = reception ? '申し込む' : advance ? '事前申し込みを送信する' : '仮予約を送信する';
   const dateSelect = form.querySelector<HTMLSelectElement>('#date')!;
   const times = document.getElementById('js-times');
@@ -322,6 +324,11 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
   const showFortune = (card: HTMLElement) => {
     const box = card.querySelector<HTMLElement>('[data-fortune]');
     if (!box) return;
+    // 当日受付では、黒星祈願祭の日だけ出す（行事の名前に「黒星」が入っている日）
+    if (reception && !kuroboshiDay) {
+      box.hidden = true;
+      return;
+    }
     const year = Number(card.querySelector<HTMLInputElement>('input[name$="-birthday"]')!.value.slice(0, 4));
     if (!year || year < 1900 || year > KUROBOSHI_YEAR) {
       box.hidden = true;
@@ -637,11 +644,34 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
     // 当日受付：境内の QR コードの URL に入っている合言葉を、送信のときに一緒に送る
     const key = new URLSearchParams(location.search).get('k') ?? '';
     (form.elements.namedItem('k') as HTMLInputElement).value = key;
-    if (!key) {
-      showError('このページは、神社に掲示している今日の QR コードから開いてください。');
-      button.disabled = true;
-    }
     initFee();
+    // 今日の受付の様子（記号が今日のものか、受付時間か、行事の名前）を確かめる
+    const closed = (message: string) => {
+      showError(message);
+      button.disabled = true;
+    };
+    if (!key) {
+      closed('このページは、神社に掲示している今日の QR コードから開いてください。');
+    } else {
+      fetch(`/api/reception/today?k=${encodeURIComponent(key)}`, { cache: 'no-store' })
+        .then((res) => res.json())
+        .then((t: { ok: boolean; error?: string; open?: boolean; label?: string; from?: string; to?: string; event?: string }) => {
+          if (!t.ok) return closed(t.error || 'ただいま受付できません。社務所の受付でお申し込みください。');
+          const hours = t.from && t.to ? `（受付時間 ${t.from.replace(/^0/, '')}〜${t.to.replace(/^0/, '')}）` : '';
+          const eventEl = document.getElementById('js-reception-event');
+          if (t.event && eventEl) {
+            eventEl.innerHTML = `<strong></strong><span></span>`;
+            eventEl.querySelector('strong')!.textContent = t.event;
+            eventEl.querySelector('span')!.textContent = `${t.label ?? ''}の当日受付${hours}`;
+            eventEl.hidden = false;
+            document.title = `${t.event} ${document.title}`;
+          }
+          kuroboshiDay = !!t.event?.includes('黒星');
+          persons.querySelectorAll<HTMLElement>('[data-person]').forEach(showFortune);
+          if (!t.open) closed(`ただいま、こちらでの受付の時間外です${hours}。社務所の受付でお申し込みください。`);
+        })
+        .catch(() => closed('受付の様子を確かめられませんでした。ページを再読み込みしていただくか、社務所の受付でお申し込みください。'));
+    }
   } else if (advance) {
     // 事前申し込み：締め切り前の日だけを選べるようにする（締め切りは送信の時にもう一度確かめる）
     const open = advanceDates();

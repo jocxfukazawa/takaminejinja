@@ -1,5 +1,6 @@
 /**
  * 当日受付の、日ごとの URL（QR コードにするもの）を返す（神社の方だけ）。
+ * 日は Airtable の「当日受付の日」の表の、今日から先の日。行事の名前も返す（空ならポスターに出さない）。
  * 掲示用の QR コードのページ（/admin/reception-qr/）が使う。
  *
  *   GET /api/admin/reception-urls
@@ -10,10 +11,11 @@
  */
 
 import { accessUser, type AccessEnv } from '../../../src/lib/access';
-import { RECEPTION_WINDOWS, dateLabel, jstNow } from '../../../src/lib/reservation';
+import { receptionDays, type AirtableEnv } from '../../../src/lib/airtable';
+import { dateLabel, jstNow } from '../../../src/lib/reservation';
 import { receptionKey } from '../../../src/lib/reception-key';
 
-interface Env extends AccessEnv {
+interface Env extends AccessEnv, AirtableEnv {
   RECEPTION_SECRET?: string;
   RECEPTION_ALWAYS_OPEN?: string;
 }
@@ -31,19 +33,27 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   if (!(await accessUser(request, env))) return json({ ok: false, error: 'ログインが必要です。' }, 403);
   if (!env.RECEPTION_SECRET) return json({ ok: false, error: '環境変数 RECEPTION_SECRET が設定されていません。' }, 500);
 
+  const today = jstNow().date;
+  let all;
+  try {
+    all = await receptionDays(env);
+  } catch (e) {
+    console.error('reception-urls: 当日受付の日を読み込めなかった', e);
+    return json({ ok: false, error: 'Airtable の「当日受付の日」の表を読み込めませんでした。表の名前と項目名をご確認ください。' }, 502);
+  }
   const days = await Promise.all(
-    RECEPTION_WINDOWS.map(async (w) => ({
+    all.filter((w) => w.date >= today).map(async (w) => ({
       ...w,
       label: dateLabel(w.date),
       url: `${SITE}/reception/?k=${await receptionKey(env.RECEPTION_SECRET!, w.date)}`,
     })),
   );
-  const today = jstNow().date;
   const test =
     env.RECEPTION_ALWAYS_OPEN === '1'
       ? {
           date: today,
           label: dateLabel(today),
+          event: all.find((w) => w.date === today)?.event ?? '',
           url: `${new URL(request.url).origin}/reception/?k=${await receptionKey(env.RECEPTION_SECRET, today)}`,
         }
       : null;
