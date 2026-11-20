@@ -12,7 +12,8 @@
  *
  * mode=reception は黒星祈願祭の当日受付（参拝の方がその場で入力する）：
  *   - 境内の QR コードに入れた合言葉（RECEPTION_KEY）と、受付の日時（RECEPTION_WINDOWS）を確かめる
- *   - その場で「予約確定」として書き込み、申込書を PDF にしてプリンターへメールで送る（src/lib/printer.ts）
+ *   - その場で「予約確定」として書き込む。申込書は、社務所のパソコンで開いている
+ *     当日受付の印刷ページ（/admin/reception/）が新しい受付を見つけて、自動で印刷する
  *   - 初穂料は、計算した金額以上で、ご本人が入れた金額にする
  *   - RECEPTION_ALWAYS_OPEN=1 にすると、受付の日時でなくても受け付ける（試しのときだけ。本番では設定しない）
  */
@@ -21,15 +22,12 @@ import {
   MAX_PERSONS, PHONE, PRAYERS, PRAYER_OTHER, SLOT_TIMES,
   advanceDates, bookableDates, feeSummary, wareki, isClosed, isValidBirthday, jstNow, receptionWindow, storedDate, type Extra,
 } from '../../../src/lib/reservation';
-import { addReceptionExtra, childFees, toChildSheets, toSheet } from '../../../src/lib/sheet';
-import { sheetsDocument } from '../../../src/lib/sheet-html';
-import { PrintError, htmlToPdf, mailToPrinter, missingPrinterSettings, type PrinterEnv } from '../../../src/lib/printer';
 import {
   AirtableError, F, closures, createRecords, deleteRecords, formatWebNo, isFirstInSlot, lastWebNumber, missingSettings,
   recordsWithNumbers, takenSlots, updateRecords, type AirtableEnv, type AirtableRecord,
 } from '../../../src/lib/airtable';
 
-interface Env extends AirtableEnv, PrinterEnv {
+interface Env extends AirtableEnv {
   TURNSTILE_SECRET_KEY?: string;
   /** 当日受付の合言葉（境内の QR コードの URL に入れる） */
   RECEPTION_KEY?: string;
@@ -406,35 +404,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     console.error('reservation: 番号の重なりの確認に失敗', e);
   }
 
-  if (reception) {
-    const printed = await printSheets(env, records);
-    return json({ ok: true, no: reservationNo(), total, printed });
-  }
+  if (reception) return json({ ok: true, no: reservationNo(), total });
   return json(advance ? { ok: true, no: reservationNo() } : { ok: true });
 };
 
-/**
- * 当日受付：書き込んだ行から申込書を作り、PDF にしてプリンターへ送る。
- * 送れなくても受付は済んでいる（神社の方が印刷ページから予約番号で印刷できる）ので、送れたかどうかだけを返す。
- * 計算した金額より多くお納めいただく分は、代表の方の最初の申込書に足して書く
- */
-async function printSheets(env: Env, records: AirtableRecord[]) {
-  const missing = missingPrinterSettings(env);
-  if (missing.length) {
-    console.error('reception: プリンターの設定がありません', missing);
-    return false;
-  }
-  try {
-    const rows = records.map((r) => ({ id: r.id, fields: r.fields }));
-    const sheets = rows.map((r) => toSheet(r).sheet).filter((s) => s != null);
-    const children = childFees(rows.flatMap(toChildSheets));
-    addReceptionExtra(rows, [...sheets, ...children]);
-    const pdf = await htmlToPdf(env, sheetsDocument(sheets, children));
-    const no = String(rows[0].fields['予約番号'] ?? '');
-    await mailToPrinter(env, pdf, `${no}.pdf`, `当日受付 ${no}（${rows.length}名）`);
-    return true;
-  } catch (e) {
-    console.error('reception: 申込書を印刷へ送れませんでした', e instanceof PrintError ? `${e.step}: ${e.message}` : e);
-    return false;
-  }
-}

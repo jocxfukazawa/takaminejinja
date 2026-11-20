@@ -3,6 +3,7 @@
  *
  *   GET /api/admin/sheets?date=2027-01-10   その日の予約・事前申し込み（キャンセルを除く）
  *   GET /api/admin/sheets?no=W000121        その予約番号の予約（同じ予約グループのご家族も）
+ *   GET /api/admin/sheets?reception=2027-01-09  その日の当日受付だけ（当日受付の自動印刷のページが使う）
  *
  * sheets は普通の祈祷申込書、children は七五三詣・初宮詣の申込書（どちらも1人1枚）。
  *
@@ -32,9 +33,12 @@ export const onRequestGet: PagesFunction<AirtableEnv & AccessEnv> = async ({ req
   const url = new URL(request.url);
   const date = url.searchParams.get('date') ?? '';
   const no = (url.searchParams.get('no') ?? '').toUpperCase();
+  const reception = url.searchParams.get('reception') ?? '';
   const web = `OR({受付経路} = 'Webフォーム', {受付経路} = '事前申込', {受付経路} = '当日受付')`;
   let formula: string;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(reception)) {
+    formula = `AND({受付経路} = '当日受付', {予約ステータス} != 'キャンセル', LEFT({御祈祷日}, 10) = '${reception.replace(/-/g, '/')}')`;
+  } else if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     formula = `AND(${web}, {予約ステータス} != 'キャンセル', LEFT({御祈祷日}, 10) = '${date.replace(/-/g, '/')}')`;
   } else if (/^W\d{6}$/.test(no)) {
     formula = `AND(${web}, OR({予約番号} = '${no}', {予約グループ} = '${no}'))`;

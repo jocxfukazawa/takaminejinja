@@ -712,11 +712,11 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
     try {
       const res = await fetch(form.action, { method: 'POST', body: new FormData(form) });
       const data = (await res.json().catch(() => ({}))) as {
-        ok?: boolean; error?: string; refresh?: boolean; step?: string; type?: string; detail?: string; no?: string; total?: number; printed?: boolean;
+        ok?: boolean; error?: string; refresh?: boolean; step?: string; type?: string; detail?: string; no?: string; total?: number;
       };
       if (res.ok && data.ok) {
         window.location.href = reception
-          ? `/reception/thanks/?${new URLSearchParams({ no: data.no ?? '', total: String(data.total ?? ''), printed: data.printed ? '1' : '0' })}`
+          ? `/reception/thanks/?${new URLSearchParams({ no: data.no ?? '', total: String(data.total ?? '') })}`
           : advance
             ? `/reservation/advance/thanks/?no=${encodeURIComponent(data.no ?? '')}`
             : '/reservation/thanks/';

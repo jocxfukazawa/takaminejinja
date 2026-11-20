@@ -6,7 +6,6 @@ import FixedPage from '../../layouts/FixedPage.astro';
   <div id="js-reception-result" hidden>
     <p class="p-advance-no">受付番号<strong data-no></strong></p>
     <p class="p-reception-fee" data-fee hidden>初穂料　<strong></strong></p>
-    <p class="p-reception-printed" data-unprinted hidden>※ 申込書の印刷が確認できませんでした。受付で、受付番号とお名前をお伝えください。</p>
   </div>
 </FixedPage>
 
@@ -23,7 +22,6 @@ import FixedPage from '../../layouts/FixedPage.astro';
       fee.querySelector('strong')!.textContent = `${total.toLocaleString('ja-JP')}円`;
       fee.hidden = false;
     }
-    box.querySelector<HTMLElement>('[data-unprinted]')!.hidden = q.get('printed') !== '0';
     box.hidden = false;
   }
 </script>

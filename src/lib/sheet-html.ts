@@ -1,7 +1,7 @@
 // @ts-nocheck
 /**
  * 祈祷申込書（B6）の見た目を HTML で作る。
- * 印刷ページ（/admin/print/）と、当日受付で申込書を PDF にしてプリンターへ送るとき（functions/api/reception）で共通。
+ * 印刷ページ（/admin/print/）と、当日受付の自動印刷のページ（/admin/reception/）で共通。
  * 渡すデータは src/lib/sheet.ts の Sheet / ChildSheet。
  */
 
@@ -285,12 +285,3 @@ export function adjustSheets(root) {
   });
 }
 
-/** PDF にするための、申込書だけのページ（当日受付で使う） */
-export function sheetsDocument(sheets: any[] = [], children: any[] = []) {
-  return `<!doctype html><html lang="ja"><head><meta charset="utf-8">
-<link rel="stylesheet" href="${SHEET_FONT_URL}">
-<style>* { box-sizing: border-box; } body { margin: 0; color: #111; }${SHEET_CSS}.sheet { box-shadow: none; }</style>
-</head><body>${sheetsHtml(sheets, children).html}
-<script>(${adjustSheets.toString()})(document); document.fonts.ready.then(() => (${adjustSheets.toString()})(document));</script>
-</body></html>`;
-}
