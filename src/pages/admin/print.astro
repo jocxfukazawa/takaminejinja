@@ -246,15 +246,24 @@
       const NOTES_BOTTOM = 116; // 受付・祈祷日と備考の下端（その下に No. と初穂料）
 
       const d = s.date;
-      col('date', centered(`令和 ${d ? n(d.year) : '　'} 年 ${d ? n(d.month) : '　'} 月 ${d ? n(d.day) : '　'} 日`, 3.4, 'letter-spacing:.4mm;'), H, NOTES_BOTTOM);
+      // 時刻は日付に続けて書く（例: 令和8年11月23日 10時30分）
+      const [hh, mm] = (s.time || '').split(':');
+      const time = s.time ? `　${n(hh)}時${mm === '00' ? '' : `${n(mm)}分`}` : '';
+      const dateLen = 14 + (s.time ? 6 : 0); // 1列の字数の目安（数字は2桁で1字）
+      const dateSize = Math.min(3.6, (NOTES_BOTTOM - H - 6) / dateLen - 0.3).toFixed(2);
+      col('date', centered(`令和${d ? n(d.year) : '　'}年${d ? n(d.month) : '　'}月${d ? n(d.day) : '　'}日${time}`, dateSize, 'letter-spacing:.3mm;'), H, NOTES_BOTTOM);
       col('notes',
-        `<div class="v val" style="position:absolute;inset:2.5mm 1.5mm 8mm;font-size:${fit(s.notes, 10.4, NOTES_BOTTOM - H - 11, 3.4, 1.35)}mm;line-height:1.35;">${s.notes.map(esc).join('<br>')}</div>
+        `<div class="v val" style="position:absolute;inset:2.5mm 1.5mm 8mm;font-size:${fit(s.notes, 10.4, NOTES_BOTTOM - H - 11, 5, 1.3)}mm;line-height:1.3;">${s.notes.map(esc).join('<br>')}</div>
          <div style="position:absolute;left:0;right:0;bottom:2mm;text-align:center;font-size:2.6mm;font-weight:700;">A･B･C･D</div>`, H, NOTES_BOTTOM);
+      // 生年月日と年齢は1列に、氏名と同じ大きさで書く（収まらないときだけ小さく）
       const b = s.birth;
+      const nameSize = fit([s.name], 10.5, 90, 6, 1.1, 1);
+      const birthText = `${b?.era ?? ''}${b ? (Number(b.year) === 1 ? '元' : '00') : '　'}年${b ? '00' : '　'}月${b ? '00' : '　'}日生 ${s.kazoe != null ? '00' : '　'}才`;
+      const birthSize = Math.min(Number(nameSize), Number(fit([birthText], 11.4, BOTTOM - H - 6, 6, 1.1, 0.3))).toFixed(2);
       col('birth', centered(
-        `${esc(b?.era ?? '')} ${b ? eraYear(b.year) : '　'} 年 ${b ? n(b.month) : '　'} 月 ${b ? n(b.day) : '　'} 日生<br>${s.kazoe != null ? `${n(s.kazoe)} 才` : '　　才'}`,
-        3.4, 'line-height:1.6;letter-spacing:.3mm;'));
-      col('name', centered(esc(s.name), fit([s.name], 10.5, 90, 6, 1.1, 1), 'letter-spacing:1mm;', '4mm 0'), H, 134);
+        `${esc(b?.era ?? '')}${b ? eraYear(b.year) : '　'}年${b ? n(b.month) : '　'}月${b ? n(b.day) : '　'}日生　${s.kazoe != null ? n(s.kazoe) : '　'}才`,
+        birthSize, 'line-height:1.1;letter-spacing:.3mm;', '3mm 0'));
+      col('name', centered(esc(s.name), nameSize, 'letter-spacing:1mm;', '4mm 0'), H, 134);
       parts.push(cell(x.name.cx, 134, x.name.w, 10, esc(s.gender === '回答しない' ? '' : s.gender), 'val', 'font-size:3.6mm;text-align:center;padding-top:2mm;'));
       col('kana', centered(esc(s.kana), fit([s.kana], 5, 106, 3.6, 1.1), 'line-height:1.1;', '2mm 0'));
       for (const p of ['mother', 'father']) {
@@ -268,7 +277,8 @@
       parts.push(cell(0, NOTES_BOTTOM, 23.4, 10, '<span style="font-size:2.6mm;font-weight:700;">No.</span>', '', 'padding:2mm 1.5mm;'));
       parts.push(cell(0, NOTES_BOTTOM + 10, 23.4, BOTTOM - NOTES_BOTTOM - 10,
         `<div class="label" style="height:6mm;border-bottom:.15mm solid #111;">初穂料</div>
-         <div class="val" style="text-align:right;padding:3mm 1.5mm 0;font-size:4.6mm;line-height:1.2;">${s.fee ? `${esc(s.fee.toLocaleString('ja-JP'))}<small style="font-size:2.8mm;">円</small>` : ''}</div>`));
+         <div class="val" style="text-align:right;padding:1.8mm 1.5mm 0;font-size:4.6mm;line-height:1.2;">${s.fee ? `${esc(s.fee.toLocaleString('ja-JP'))}<small style="font-size:2.8mm;">円</small>` : ''}</div>
+         ${s.card ? '<div class="val" style="position:absolute;left:1.5mm;bottom:.8mm;font-size:2.4mm;">カード払い</div>' : ''}`));
       // いちばん下：連絡先 TEL と 〒
       parts.push(cell(0, BOTTOM, 66, 156 - BOTTOM,
         `<span style="font-size:2.6mm;font-weight:700;">連絡先 TEL</span>　<span class="val" style="font-size:4mm;">${esc(s.tel)}</span>`, '', 'padding:3mm 2mm;'));

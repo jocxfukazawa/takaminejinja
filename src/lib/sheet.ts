@@ -47,6 +47,10 @@ export interface ChildSheet extends Omit<Sheet, 'prayers' | 'car'> {
   mother: { name: string; kana: string };
   /** 生年月日（並べ替え・ごきょうだいの年上の方を決めるのに使う） */
   birthKey: string;
+  /** ご祈祷の時刻（例: 10:30）。備考ではなく受付・祈祷日の欄に日付に続けて書く */
+  time: string;
+  /** 事前にクレジットカードでお納め。備考ではなく初穂料の欄に小さく書く */
+  card: boolean;
 }
 
 const text = (v: unknown) => (v == null ? '' : Array.isArray(v) ? v.join('、') : String(v)).trim();
@@ -97,11 +101,16 @@ export function toChildSheets(row: SheetRow): ChildSheet[] {
   const prayers = list(row.fields['御祈祷内容']);
   const { notesBefore, notesAfter, ...rest } = commonFields(row);
   const parents = parseParents(row.fields['父母の名前']);
+  // 備考の欄は狭いので、時刻とカード払いは別の欄に書く（備考の字を大きくするため）
+  const time = normalizeTime(row.fields['御祈祷時刻'])?.replace(/^0/, '') ?? '';
+  const card = notesAfter.includes('カード払い');
   return SEPARATE_FORM.filter((p) => prayers.includes(p)).map((p) => ({
     ...rest,
     ...parents,
     kind: p === SHICHIGOSAN ? 'shichigosan' : 'hatsumiya',
-    notes: [...notesBefore, ...notesAfter],
+    time,
+    card,
+    notes: [...notesBefore, ...notesAfter].filter((n) => n !== 'カード払い' && !n.endsWith('〜')),
     fee: p === HATSUMIYA ? FEE_HATSUMIYA : 0,
   }));
 }
