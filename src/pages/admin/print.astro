@@ -134,7 +134,7 @@
         'v val', 'font-size:3.6mm;padding:3mm 0;display:flex;align-items:center;letter-spacing:.5mm;'));
       parts.push(cell(9, 0, 27, 12, '備　考', 'label'));
       parts.push(cell(9, 12, 27, 102 - carH,
-        `<div class="v val" style="position:absolute;inset:3mm 2mm 9mm;font-size:${fit(s.notes, 23, 90 - carH, 3.6, 1.4)}mm;line-height:1.4;">${s.notes.map(esc).join('<br>')}</div>
+        `<div style="position:absolute;inset:3mm 2mm 9mm;display:flex;justify-content:center;"><div class="v val" style="font-size:${fit(s.notes, 23, 90 - carH, 3.6, 1.4)}mm;line-height:1.4;">${s.notes.map(esc).join('<br>')}</div></div>
          <div style="position:absolute;left:0;right:0;bottom:2mm;text-align:center;font-size:3mm;font-weight:700;">A・B・C・D</div>`));
       if (carH) {
         parts.push(cell(0, 114 - carH, 36, carH,
@@ -231,6 +231,7 @@
     function childSheetHtml(s, copy) {
       const parts = [];
       const H = 31; // 見出しの段の高さ
+      // 備考は、1行でも2行以上でも、まとまりごと欄の左右の真ん中に書く（普通の申込書も同じ）
       const BOTTOM = 144; // 連絡先・〒の段の上端
       const cols = [
         ['date', 0, 10, '受付・祈祷日'], ['notes', 10, 13.4, '備　考'], ['birth', 23.4, 12.4, '生年月日・年齢'],
@@ -253,7 +254,7 @@
       const dateSize = Math.min(3.6, (NOTES_BOTTOM - H - 6) / dateLen - 0.3).toFixed(2);
       col('date', centered(`令和${d ? n(d.year) : '　'}年${d ? n(d.month) : '　'}月${d ? n(d.day) : '　'}日${time}`, dateSize, 'letter-spacing:.3mm;'), H, NOTES_BOTTOM);
       col('notes',
-        `<div class="v val" style="position:absolute;inset:2.5mm 1.5mm 8mm;font-size:${fit(s.notes, 10.4, NOTES_BOTTOM - H - 11, 5, 1.3)}mm;line-height:1.3;">${s.notes.map(esc).join('<br>')}</div>
+        `<div style="position:absolute;inset:2.5mm 1.5mm 8mm;display:flex;justify-content:center;"><div class="v val" style="font-size:${fit(s.notes, 10.4, NOTES_BOTTOM - H - 11, 5, 1.3)}mm;line-height:1.3;">${s.notes.map(esc).join('<br>')}</div></div>
          <div style="position:absolute;left:0;right:0;bottom:2mm;text-align:center;font-size:2.6mm;font-weight:700;">A･B･C･D</div>`, H, NOTES_BOTTOM);
       // 生年月日と年齢は1列に、氏名と同じ大きさで書く（収まらないときだけ小さく）
       const b = s.birth;
