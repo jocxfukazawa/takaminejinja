@@ -10,9 +10,9 @@
  *
  * 環境変数は src/lib/airtable.ts と、Turnstile の TURNSTILE_SECRET_KEY。
  *
- * mode=reception は黒星祈願祭の当日受付（参拝の方がその場で入力する）：
+ * mode=reception は当日受付（参拝の方がその場で入力する）：
  *   - 境内の QR コードの URL に入れた「その日だけの記号」（src/lib/reception-key.ts）と、
- *     受付の日時（RECEPTION_WINDOWS）を確かめる
+ *     受付の日時（Airtable の「当日受付の日」の表）を確かめる
  *   - その場で「予約確定」として書き込む。申込書は、社務所のパソコンで開いている
  *     当日受付の印刷ページ（/admin/reception/）が新しい受付を見つけて、自動で印刷する
  *   - 初穂料は、計算した金額以上で、ご本人が入れた金額にする
@@ -26,7 +26,7 @@ import {
 import { isReceptionKey } from '../../../src/lib/reception-key';
 import {
   AirtableError, F, closures, createRecords, deleteRecords, formatWebNo, isFirstInSlot, lastWebNumber, missingSettings,
-  recordsWithNumbers, takenSlots, updateRecords, type AirtableEnv, type AirtableRecord,
+  receptionDays, recordsWithNumbers, takenSlots, updateRecords, type AirtableEnv, type AirtableRecord,
 } from '../../../src/lib/airtable';
 
 interface Env extends AirtableEnv {
@@ -140,13 +140,24 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const mode = clean(form.get('mode'));
   const advance = mode === 'advance';
   const reception = mode === 'reception';
+  /** 当日受付の行事の名前（「当日受付の日」の表に入っていれば、予約の詳細に書く） */
+  let receptionEvent = '';
   if (reception) {
     if (!(await isReceptionKey(env.RECEPTION_SECRET, jstNow().date, clean(form.get('k'))))) {
       return fail('このページは、神社に掲示している今日の QR コードから開いてください。', 403);
     }
-    if (env.RECEPTION_ALWAYS_OPEN !== '1' && !receptionWindow()) {
+    let days;
+    try {
+      days = await receptionDays(env);
+    } catch (e) {
+      console.error('reservation: 当日受付の日を読み込めなかった', e);
+      return fail('ただいま受付できません。社務所の受付でお申し込みください。', 502, cause('当日受付の日の確認', e));
+    }
+    const open = receptionWindow(days);
+    if (env.RECEPTION_ALWAYS_OPEN !== '1' && !open) {
       return fail('ただいま、こちらでの受付の時間外です。社務所の受付でお申し込みください。', 403);
     }
+    receptionEvent = (open ?? days.find((d) => d.date === jstNow().date))?.event ?? '';
   }
 
   const token = String(form.get('cf-turnstile-response') ?? '');
@@ -312,7 +323,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   };
   const details = [
     ...(advance ? [`申込番号：${numbers[0]}`, `ご来社予定日：${storedDate(v.date)}`] : []),
-    ...(reception ? [`受付番号：${numbers[0]}`, `当日受付：${storedDate(v.date)}`] : []),
+    ...(reception ? [`受付番号：${numbers[0]}`, `当日受付：${storedDate(v.date)}${receptionEvent ? `（${receptionEvent}）` : ''}`] : []),
     ...(visiting ? [`ご祈祷希望日時：${storedDate(v.date)} ${v.time}`] : []),
     ...people.flatMap((p, n) => [
       ...(multiple ? ['', `【${n + 1}人目${n === 0 ? '（代表の方）' : ''}】`] : []),

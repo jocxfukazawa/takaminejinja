@@ -211,14 +211,16 @@ export function advanceDates(now = Date.now()): string[] {
 
 /** 黒星を見る年（事前申し込みの対象日の年） */
 /**
- * 黒星祈願祭の当日受付（参拝の方がご自分のスマホや神社のタブレットで入力し、その場で受付が確定する）。
- * この日のこの時間（日本時間）だけ受け付ける。毎年、日付を書き換える。
+ * 当日受付の日（参拝の方がご自分のスマホや神社のタブレットで入力し、その場で受付が確定する日）。
+ * Airtable の「当日受付の日」の表に、神社が1日1行で入れる（src/lib/airtable.ts の receptionDays）。
+ * event（行事の名前）を入れた日は、申し込みのページとポスターにその名前を出す。空なら出さない
  */
-export const RECEPTION_WINDOWS = [
-  { date: '2027-01-09', from: '09:00', to: '19:00' },
-  { date: '2027-01-10', from: '09:00', to: '19:00' },
-  { date: '2027-01-11', from: '09:00', to: '17:00' },
-];
+export interface ReceptionDay {
+  date: string;
+  from: string;
+  to: string;
+  event: string;
+}
 
 /** 日本時間の今日の日付（2027-01-09）と時刻（09:30） */
 export function jstNow(now = Date.now()) {
@@ -226,10 +228,10 @@ export function jstNow(now = Date.now()) {
   return { date: iso.slice(0, 10), time: iso.slice(11, 16) };
 }
 
-/** 今、当日受付をしている日の受付時間（していなければ null） */
-export function receptionWindow(now = Date.now()) {
+/** 今、当日受付をしている日（受付時間の中でなければ null） */
+export function receptionWindow(days: ReceptionDay[], now = Date.now()) {
   const { date, time } = jstNow(now);
-  return RECEPTION_WINDOWS.find((w) => w.date === date && time >= w.from && time < w.to) ?? null;
+  return days.find((w) => w.date === date && time >= w.from && time < w.to) ?? null;
 }
 
 export const KUROBOSHI_YEAR = Number(ADVANCE_DATES[ADVANCE_DATES.length - 1].slice(0, 4));

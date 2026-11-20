@@ -6,15 +6,17 @@
  *   AIRTABLE_BASE_ID        base の ID（app で始まる）
  *   AIRTABLE_TABLE          予約の表（名前か tbl で始まる ID）
  *   AIRTABLE_CLOSURE_TABLE  受付停止日の表（名前か ID）
+ *   AIRTABLE_RECEPTION_TABLE 当日受付の日の表（名前か ID。設定しなければ「当日受付の日」）
  */
 
-import { normalizeDate, normalizeTime, type Closure } from './reservation';
+import { normalizeDate, normalizeTime, type Closure, type ReceptionDay } from './reservation';
 
 export interface AirtableEnv {
   AIRTABLE_TOKEN?: string;
   AIRTABLE_BASE_ID?: string;
   AIRTABLE_TABLE?: string;
   AIRTABLE_CLOSURE_TABLE?: string;
+  AIRTABLE_RECEPTION_TABLE?: string;
   /** 動作確認用に差し替えるときだけ設定する */
   AIRTABLE_API_URL?: string;
 }
@@ -229,4 +231,33 @@ export async function isFirstInSlot(env: AirtableEnv, ids: Set<string>, slot: st
   const same = (await activeBookings(env)).filter((r) => r.slot === slot);
   same.sort((a, b) => a.createdTime.localeCompare(b.createdTime) || a.id.localeCompare(b.id));
   return same.length === 0 || ids.has(same[0].id);
+}
+
+/** 「当日受付の日」の表の項目名（表記の揺れを許す） */
+const RECEPTION_FIELDS = {
+  date: ['日付', '日にち', '受付日', '日'],
+  start: ['開始時刻', '開始時間', '開始', 'から'],
+  end: ['終了時刻', '終了時間', '終了', 'まで'],
+  event: ['行事名', '行事の名前', '行事', '名前'],
+};
+
+/** 時刻（「9:00」のような文字か、Airtable の「期間」の項目の秒数） */
+const timeOf = (v: unknown) =>
+  typeof v === 'number' ? `${String(Math.floor(v / 3600)).padStart(2, '0')}:${String(Math.floor((v % 3600) / 60)).padStart(2, '0')}` : normalizeTime(v);
+
+/**
+ * 当日受付の日（日付の順）。日付・開始時刻・終了時刻がそろっている行だけ。
+ * 行事名は、入っていれば申し込みのページとポスターに出す
+ */
+export async function receptionDays(env: AirtableEnv): Promise<ReceptionDay[]> {
+  const records = await listAll(env, env.AIRTABLE_RECEPTION_TABLE || '当日受付の日', { pageSize: '100' });
+  return records
+    .map((r) => ({
+      date: normalizeDate(pick(r.fields, RECEPTION_FIELDS.date)),
+      from: timeOf(pick(r.fields, RECEPTION_FIELDS.start)),
+      to: timeOf(pick(r.fields, RECEPTION_FIELDS.end)),
+      event: String(pick(r.fields, RECEPTION_FIELDS.event) ?? '').trim(),
+    }))
+    .filter((d): d is ReceptionDay => !!d.date && !!d.from && !!d.to && d.from < d.to)
+    .sort((a, b) => a.date.localeCompare(b.date) || a.from.localeCompare(b.from));
 }
