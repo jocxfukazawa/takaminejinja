@@ -11,7 +11,8 @@
  * 環境変数は src/lib/airtable.ts と、Turnstile の TURNSTILE_SECRET_KEY。
  *
  * mode=reception は黒星祈願祭の当日受付（参拝の方がその場で入力する）：
- *   - 境内の QR コードに入れた合言葉（RECEPTION_KEY）と、受付の日時（RECEPTION_WINDOWS）を確かめる
+ *   - 境内の QR コードの URL に入れた「その日だけの記号」（src/lib/reception-key.ts）と、
+ *     受付の日時（RECEPTION_WINDOWS）を確かめる
  *   - その場で「予約確定」として書き込む。申込書は、社務所のパソコンで開いている
  *     当日受付の印刷ページ（/admin/reception/）が新しい受付を見つけて、自動で印刷する
  *   - 初穂料は、計算した金額以上で、ご本人が入れた金額にする
@@ -22,6 +23,7 @@ import {
   MAX_PERSONS, PHONE, PRAYERS, PRAYER_OTHER, SLOT_TIMES,
   advanceDates, bookableDates, feeSummary, wareki, isClosed, isValidBirthday, jstNow, receptionWindow, storedDate, type Extra,
 } from '../../../src/lib/reservation';
+import { isReceptionKey } from '../../../src/lib/reception-key';
 import {
   AirtableError, F, closures, createRecords, deleteRecords, formatWebNo, isFirstInSlot, lastWebNumber, missingSettings,
   recordsWithNumbers, takenSlots, updateRecords, type AirtableEnv, type AirtableRecord,
@@ -29,8 +31,8 @@ import {
 
 interface Env extends AirtableEnv {
   TURNSTILE_SECRET_KEY?: string;
-  /** 当日受付の合言葉（境内の QR コードの URL に入れる） */
-  RECEPTION_KEY?: string;
+  /** 当日受付の URL の「その日だけの記号」を計算する元の値（神社だけが知っている値） */
+  RECEPTION_SECRET?: string;
   /** 1 にすると、当日受付を日時に関係なく受け付ける（試しのときだけ） */
   RECEPTION_ALWAYS_OPEN?: string;
 }
@@ -139,8 +141,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const advance = mode === 'advance';
   const reception = mode === 'reception';
   if (reception) {
-    if (!env.RECEPTION_KEY || clean(form.get('k')) !== env.RECEPTION_KEY) {
-      return fail('このページは、神社に掲示している QR コードから開いてください。', 403);
+    if (!(await isReceptionKey(env.RECEPTION_SECRET, jstNow().date, clean(form.get('k'))))) {
+      return fail('このページは、神社に掲示している今日の QR コードから開いてください。', 403);
     }
     if (env.RECEPTION_ALWAYS_OPEN !== '1' && !receptionWindow()) {
       return fail('ただいま、こちらでの受付の時間外です。社務所の受付でお申し込みください。', 403);

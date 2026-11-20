@@ -638,7 +638,7 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
     const key = new URLSearchParams(location.search).get('k') ?? '';
     (form.elements.namedItem('k') as HTMLInputElement).value = key;
     if (!key) {
-      showError('このページは、神社に掲示している QR コードから開いてください。');
+      showError('このページは、神社に掲示している今日の QR コードから開いてください。');
       button.disabled = true;
     }
     initFee();
