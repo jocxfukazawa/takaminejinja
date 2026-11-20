@@ -70,6 +70,7 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
 
   <h2 class="p-reserve__heading">ご祈祷を受けられる方</h2>
   <p class="p-reserve__help">ご家族などでご一緒にご祈祷を受けられる場合は、下の「＋ 一緒にご祈祷を受ける方を追加」から、お一人ずつご入力ください（{MAX_PERSONS}名まで）。ご祈願内容は、お一人ずつ（複数でも）お選びいただけます。<br />ご祈祷料は、ご祈願1件につき5千円以上（初宮詣は8千円以上）でお心持ちをお納めいただいております。</p>
+  <p class="p-reserve__notice">ここには、<strong>ご祈祷を受けるご本人</strong>のお名前・生年月日をご入力ください。<br /><strong>七五三詣・初宮詣は、お子さまのお名前</strong>です（父母のお名前は、ご祈願内容を選ぶと出る欄にご入力いただきます）。</p>
 
   <div id="js-persons"></div>
   <p class="p-reserve__add-wrap"><button type="button" class="p-reserve__add" id="js-add-person">＋ 一緒にご祈祷を受ける方を追加</button></p>
@@ -155,7 +156,7 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
               </div>
             </div>
           ))}
-          <p class="p-reserve__help">父・母のどちらかお一人だけでも構いません。</p>
+          <p class="p-reserve__help">父・母のどちらかお一人だけでも構いません。<br />上の「お名前」「生年月日」は、お子さまご本人のものをご入力ください。</p>
           <p class="p-reserve__help p-reserve__copied" data-parents-copied hidden>前の方と同じ父母のお名前を入れました。違う場合は書き換えてください。</p>
         </div>
       </div>
@@ -168,7 +169,8 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
     </fieldset>
   </template>
 
-  <h2 class="p-reserve__heading">ご連絡先（代表の方）</h2>
+  <h2 class="p-reserve__heading">ご連絡先</h2>
+  <p class="p-reserve__help">お子さまのご祈祷の場合は、保護者の方のお電話番号・メールアドレスをご入力ください。</p>
 
   <div class="p-contact-form__row">
     <div class="p-contact-form__label"><label for="zip">郵便番号</label></div>
@@ -372,11 +374,11 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
     card.dataset.parentsLast = now;
   });
 
-  /** 「1人目（代表の方）」「2人目」…の見出しと、追加ボタンの表示を整える */
+  /** 「ご祈祷を受ける方（1人目）」「（2人目）」…の見出しと、追加ボタンの表示を整える */
   const renumber = () => {
     const cards = [...persons.querySelectorAll<HTMLElement>('[data-person]')];
     cards.forEach((card, n) => {
-      card.querySelector('[data-person-label]')!.textContent = n === 0 ? '1人目（代表の方）' : `${n + 1}人目`;
+      card.querySelector('[data-person-label]')!.textContent = `ご祈祷を受ける方（${n + 1}人目）`;
       card.querySelector<HTMLElement>('[data-remove]')!.hidden = n === 0;
     });
     addPerson.hidden = cards.length >= MAX_PERSONS;
