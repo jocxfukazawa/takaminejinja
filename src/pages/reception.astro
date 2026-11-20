@@ -1,0 +1,17 @@
+---
+/**
+ * 黒星祈願祭の当日受付（参拝の方がご自分のスマホや神社のタブレットで入力する）。
+ * 境内の QR コード（/reception/?k=合言葉）から開く。検索には出さない。
+ * 受け付ける日時は src/lib/reservation.ts の RECEPTION_WINDOWS。
+ */
+import FixedPage from '../layouts/FixedPage.astro';
+import ReservationForm from '../components/ReservationForm.astro';
+---
+<FixedPage slug="reception" narrow>
+  <Fragment slot="head">
+    <meta name="robots" content="noindex, nofollow" />
+    <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+  </Fragment>
+
+  <ReservationForm reception />
+</FixedPage>

@@ -141,6 +141,23 @@ export function childFees(sheets: ChildSheet[]) {
   return sheets;
 }
 
+/**
+ * 当日受付で、計算した金額より多くお納めいただく方は、その分を代表の方の最初の申込書に足して書く。
+ * 予約全体の金額は、代表の方の行の「予約の初穂料合計」（当日受付ではご本人が入力した金額）
+ */
+export function addReceptionExtra(rows: SheetRow[], sheets: (Sheet | ChildSheet)[]) {
+  for (const rep of rows) {
+    const f = rep.fields;
+    if (text(f['受付経路']) !== '当日受付' || !f['代表者']) continue;
+    const no = text(f['予約番号']);
+    const total = Number(f['予約の初穂料合計']) || 0;
+    const mine = sheets.filter((s) => (s.group || s.no) === no);
+    const extra = total - mine.reduce((sum, s) => sum + s.fee, 0);
+    const target = mine.find((s) => s.no === no);
+    if (extra > 0 && target) target.fee += extra;
+  }
+}
+
 /** 普通の申込書と七五三詣・初宮詣の申込書で同じところ */
 function commonFields(row: SheetRow) {
   const f = row.fields;

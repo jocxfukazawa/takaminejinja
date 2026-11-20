@@ -9,19 +9,32 @@
  *      本文には、入力内容をまとめた代表者の行の「予約の詳細」を差し込む）
  *
  * 環境変数は src/lib/airtable.ts と、Turnstile の TURNSTILE_SECRET_KEY。
+ *
+ * mode=reception は黒星祈願祭の当日受付（参拝の方がその場で入力する）：
+ *   - 境内の QR コードに入れた合言葉（RECEPTION_KEY）と、受付の日時（RECEPTION_WINDOWS）を確かめる
+ *   - その場で「予約確定」として書き込み、申込書を PDF にしてプリンターへメールで送る（src/lib/printer.ts）
+ *   - 初穂料は、計算した金額以上で、ご本人が入れた金額にする
+ *   - RECEPTION_ALWAYS_OPEN=1 にすると、受付の日時でなくても受け付ける（試しのときだけ。本番では設定しない）
  */
 
 import {
   MAX_PERSONS, PHONE, PRAYERS, PRAYER_OTHER, SLOT_TIMES,
-  advanceDates, bookableDates, feeSummary, wareki, isClosed, isValidBirthday, storedDate, type Extra,
+  advanceDates, bookableDates, feeSummary, wareki, isClosed, isValidBirthday, jstNow, receptionWindow, storedDate, type Extra,
 } from '../../../src/lib/reservation';
+import { addReceptionExtra, childFees, toChildSheets, toSheet } from '../../../src/lib/sheet';
+import { sheetsDocument } from '../../../src/lib/sheet-html';
+import { PrintError, htmlToPdf, mailToPrinter, missingPrinterSettings, type PrinterEnv } from '../../../src/lib/printer';
 import {
   AirtableError, F, closures, createRecords, deleteRecords, formatWebNo, isFirstInSlot, lastWebNumber, missingSettings,
   recordsWithNumbers, takenSlots, updateRecords, type AirtableEnv, type AirtableRecord,
 } from '../../../src/lib/airtable';
 
-interface Env extends AirtableEnv {
+interface Env extends AirtableEnv, PrinterEnv {
   TURNSTILE_SECRET_KEY?: string;
+  /** 当日受付の合言葉（境内の QR コードの URL に入れる） */
+  RECEPTION_KEY?: string;
+  /** 1 にすると、当日受付を日時に関係なく受け付ける（試しのときだけ） */
+  RECEPTION_ALWAYS_OPEN?: string;
 }
 
 const json = (body: unknown, status = 200) =>
@@ -124,6 +137,18 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   // 人には見えない項目に入力があればボットとみなし、成功したふりをする
   if (clean(form.get('website'))) return json({ ok: true });
 
+  const mode = clean(form.get('mode'));
+  const advance = mode === 'advance';
+  const reception = mode === 'reception';
+  if (reception) {
+    if (!env.RECEPTION_KEY || clean(form.get('k')) !== env.RECEPTION_KEY) {
+      return fail('このページは、神社に掲示している QR コードから開いてください。', 403);
+    }
+    if (env.RECEPTION_ALWAYS_OPEN !== '1' && !receptionWindow()) {
+      return fail('ただいま、こちらでの受付の時間外です。社務所の受付でお申し込みください。', 403);
+    }
+  }
+
   const token = String(form.get('cf-turnstile-response') ?? '');
   if (!token || !(await verifyTurnstile(token, env.TURNSTILE_SECRET_KEY, request.headers.get('CF-Connecting-IP')))) {
     return fail('認証に失敗しました。ページを再読み込みして、もう一度お試しください。');
@@ -142,8 +167,15 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     payment: clean(form.get('payment')),
     message: cleanMultiline(form.get('message')),
   };
+  // 当日受付：その日に神社でお受けになる。初穂料はその場（受付）でお納めいただく。メールアドレスは任意
+  if (reception) {
+    v.method = '来社';
+    v.payment = PAY_ONSITE;
+    v.date = jstNow().date;
+    v.time = '';
+  }
   const required: [string, string][] = [
-    [v.address, '住所'], [v.tel, '電話番号'], [v.email, 'メールアドレス'],
+    [v.address, '住所'], [v.tel, '電話番号'], ...(reception ? [] : [[v.email, 'メールアドレス'] as [string, string]]),
     [v.method, 'ご祈祷方法'], [v.payment, '初穂料の納め方'],
   ];
   for (const [value, label] of required) {
@@ -154,7 +186,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   }
   if (v.zip && v.zip.length !== 7) return fail('郵便番号は7桁の数字で入力してください。');
   if (v.tel.length < 10 || v.tel.length > 11) return fail('電話番号を正しく入力してください。');
-  if (!EMAIL_RE.test(v.email)) return fail('メールアドレスの形式が正しくありません。');
+  if ((v.email || !reception) && !EMAIL_RE.test(v.email)) return fail('メールアドレスの形式が正しくありません。');
   if (!METHODS.includes(v.method)) return fail('ご祈祷方法を選んでください。');
   if (!PAYMENTS.includes(v.payment)) return fail('初穂料の納め方を選んでください。');
   if (v.method === '郵送' && v.payment === PAY_ONSITE) return fail('郵送の場合は、当日ご社頭でお納めいただくことはできません。初穂料の納め方を選び直してください。');
@@ -223,7 +255,6 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   // ── 日時の確認 ──
   // 事前申し込み（年始・黒星祈願祭）：来社予定日だけを受け取り、時刻の枠は使わない
-  const advance = clean(form.get('mode')) === 'advance';
   if (advance) {
     if (v.method !== '来社') return fail('事前申し込みは、神社にお越しになる方が対象です。');
     if (!advanceDates().includes(v.date)) {
@@ -231,7 +262,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     }
   }
   // 通常の予約（来社のみ。郵送は枠を使わない）
-  const visiting = !advance && v.method === '来社';
+  const visiting = !advance && !reception && v.method === '来社';
   const slot = `${v.date} ${v.time}`;
   if (visiting) {
     if (!bookableDates().includes(v.date) || !SLOT_TIMES.includes(v.time)) {
@@ -250,6 +281,16 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   // ── Airtable へ書き込む（1人1行。項目名は Google フォームから取り込んでいたときと同じ） ──
   // 同じ予約の行には同じ予約番号を入れ、最初の方（代表者）の行に「代表者」のチェックを入れる
   // 予約番号は1人に1つ（紙の申込書の通し番号にあたる）。続き番号で、代表者の番号を「予約グループ」として全員に入れる
+  // 予約全体の初穂料（クレジットカードのお支払いの案内で、予約につき1回だけ伝える）
+  const fee = feeSummary(people);
+  // 当日受付：計算した金額を最初に入れておき、ご本人が増やせる（減らすことはできない）
+  let total = fee.total;
+  if (reception) {
+    total = Number(digits(form.get('fee-total')));
+    if (!total || total < fee.total) return fail(`初穂料は ${fee.total.toLocaleString('ja-JP')}円以上でご入力ください。`);
+    if (total > 10_000_000) return fail('初穂料の金額をご確認ください。');
+  }
+
   let start: number;
   try {
     start = (await lastWebNumber(env)) + 1;
@@ -260,8 +301,6 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const numbersFrom = (first: number) => people.map((_, n) => formatWebNo(first + n));
   let numbers = numbersFrom(start);
   const reservationNo = () => numbers[0];
-  // 予約全体の初穂料（クレジットカードのお支払いの案内で、予約につき1回だけ伝える）
-  const fee = feeSummary(people);
 
   // 神社へのお知らせメール用に、予約全体の詳しい内容を1つの文章にまとめる（代表者の行に入れる）。
   // 祈願内容ごとの欄（父母の名前、車など）も、入力のあった方の分をすべて載せる
@@ -273,6 +312,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   };
   const details = [
     ...(advance ? [`申込番号：${numbers[0]}`, `ご来社予定日：${storedDate(v.date)}`] : []),
+    ...(reception ? [`受付番号：${numbers[0]}`, `当日受付：${storedDate(v.date)}`] : []),
     ...(visiting ? [`ご祈祷希望日時：${storedDate(v.date)} ${v.time}`] : []),
     ...people.flatMap((p, n) => [
       ...(multiple ? ['', `【${n + 1}人目${n === 0 ? '（代表の方）' : ''}】`] : []),
@@ -296,20 +336,21 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     `御祈祷方法：${v.method}`,
     `初穂料について：${v.payment}`,
     `初穂料（目安）：\n${fee.text}`,
+    ...(reception ? [`お納めいただく初穂料：${total.toLocaleString('ja-JP')}円`] : []),
     `連絡事項：${v.message}`,
-    ...(multiple && !advance ? ['', `予約番号：${numbers[0]}`] : []),
+    ...(multiple && !advance && !reception ? ['', `予約番号：${numbers[0]}`] : []),
   ].join('\n');
   const rows = people.map((p, n) => {
     const fields: Record<string, unknown> = {
       名前: `${p.sei}　${p.mei}`,
-      [F.status]: advance ? '事前申込' : '仮予約',
-      受付経路: advance ? '事前申込' : 'Webフォーム',
+      [F.status]: reception ? '予約確定' : advance ? '事前申込' : '仮予約',
+      受付経路: reception ? '当日受付' : advance ? '事前申込' : 'Webフォーム',
       予約番号: numbers[n],
       予約グループ: numbers[0],
       代表者: n === 0,
-      予約の初穂料合計: fee.total,
-      初穂料の内訳: fee.text,
-      [F.date]: visiting || advance ? storedDate(v.date) : '',
+      予約の初穂料合計: total,
+      初穂料の内訳: total > fee.total ? `${fee.text}\nお納めいただく初穂料　${total.toLocaleString('ja-JP')}円` : fee.text,
+      [F.date]: visiting || advance || reception ? storedDate(v.date) : '',
       [F.time]: visiting ? v.time : '',
       ふりがな: `${p.seiKana}　${p.meiKana}`,
       名前の特殊文字: p.special,
@@ -365,5 +406,35 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     console.error('reservation: 番号の重なりの確認に失敗', e);
   }
 
+  if (reception) {
+    const printed = await printSheets(env, records);
+    return json({ ok: true, no: reservationNo(), total, printed });
+  }
   return json(advance ? { ok: true, no: reservationNo() } : { ok: true });
 };
+
+/**
+ * 当日受付：書き込んだ行から申込書を作り、PDF にしてプリンターへ送る。
+ * 送れなくても受付は済んでいる（神社の方が印刷ページから予約番号で印刷できる）ので、送れたかどうかだけを返す。
+ * 計算した金額より多くお納めいただく分は、代表の方の最初の申込書に足して書く
+ */
+async function printSheets(env: Env, records: AirtableRecord[]) {
+  const missing = missingPrinterSettings(env);
+  if (missing.length) {
+    console.error('reception: プリンターの設定がありません', missing);
+    return false;
+  }
+  try {
+    const rows = records.map((r) => ({ id: r.id, fields: r.fields }));
+    const sheets = rows.map((r) => toSheet(r).sheet).filter((s) => s != null);
+    const children = childFees(rows.flatMap(toChildSheets));
+    addReceptionExtra(rows, [...sheets, ...children]);
+    const pdf = await htmlToPdf(env, sheetsDocument(sheets, children));
+    const no = String(rows[0].fields['予約番号'] ?? '');
+    await mailToPrinter(env, pdf, `${no}.pdf`, `当日受付 ${no}（${rows.length}名）`);
+    return true;
+  } catch (e) {
+    console.error('reception: 申込書を印刷へ送れませんでした', e instanceof PrintError ? `${e.step}: ${e.message}` : e);
+    return false;
+  }
+}

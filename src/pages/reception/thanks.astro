@@ -1,0 +1,29 @@
+---
+import FixedPage from '../../layouts/FixedPage.astro';
+---
+<FixedPage slug="reception-thanks">
+  <Fragment slot="head"><meta name="robots" content="noindex, nofollow" /></Fragment>
+  <div id="js-reception-result" hidden>
+    <p class="p-advance-no">受付番号<strong data-no></strong></p>
+    <p class="p-reception-fee" data-fee hidden>初穂料　<strong></strong></p>
+    <p class="p-reception-printed" data-unprinted hidden>※ 申込書の印刷が確認できませんでした。受付で、受付番号とお名前をお伝えください。</p>
+  </div>
+</FixedPage>
+
+<script>
+  // 送信のあとに渡された受付番号と初穂料を大きく表示する
+  const q = new URLSearchParams(location.search);
+  const no = q.get('no') ?? '';
+  if (/^W\d{6}$/.test(no)) {
+    const box = document.getElementById('js-reception-result')!;
+    box.querySelector('[data-no]')!.textContent = no;
+    const total = Number(q.get('total'));
+    if (total > 0) {
+      const fee = box.querySelector<HTMLElement>('[data-fee]')!;
+      fee.querySelector('strong')!.textContent = `${total.toLocaleString('ja-JP')}円`;
+      fee.hidden = false;
+    }
+    box.querySelector<HTMLElement>('[data-unprinted]')!.hidden = q.get('printed') !== '0';
+    box.hidden = false;
+  }
+</script>
