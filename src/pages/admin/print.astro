@@ -126,12 +126,10 @@
       const parts = [];
       // ── 左：受付・祈祷日、備考、No.、初穂料、連絡先 ──
       parts.push(cell(0, 0, 9, 26, '受付・祈祷日', 'v label'));
-      const d = s.date;
       // 車名・ナンバーがあるときは、受付・祈祷日と備考の下端に、横書きの欄を作る（高さ 22mm）
       const carH = s.car.length ? 22 : 0;
-      parts.push(cell(0, 26, 9, 88 - carH,
-        `<span>令和 ${d ? n(d.year) : '　'} 年 ${d ? n(d.month) : '　'} 月 ${d ? n(d.day) : '　'} 日</span>`,
-        'v val', 'font-size:3.6mm;padding:3mm 0;display:flex;align-items:center;letter-spacing:.5mm;'));
+      // 時刻は日付に続けて書く（例: 令和8年11月23日　10時30分）
+      parts.push(cell(0, 26, 9, 88 - carH, centered(dateText(s), dateSize(s, 88 - carH - 6), 'letter-spacing:.3mm;')));
       parts.push(cell(9, 0, 27, 12, '備　考', 'label'));
       parts.push(cell(9, 12, 27, 102 - carH,
         `<div style="position:absolute;inset:3mm 2mm 9mm;display:flex;justify-content:center;"><div class="v val" style="font-size:${fit(s.notes, 23, 90 - carH, 3.6, 1.4)}mm;line-height:1.4;">${s.notes.map(esc).join('<br>')}</div></div>
@@ -215,6 +213,15 @@
     /** 縦書きの欄の中身を、欄の左右の中央に置く */
     const centered = (html, size, style = '', pad = '3mm 0') =>
       `<div style="display:flex;justify-content:center;height:100%;padding:${pad};"><div class="v val" style="font-size:${size}mm;${style}">${html}</div></div>`;
+    /** 受付・祈祷日：令和8年11月23日　10時30分（ちょうどの時刻は「10時」） */
+    const dateText = (s) => {
+      const d = s.date;
+      const [hh, mm] = (s.time || '').split(':');
+      const time = s.time ? `　${n(hh)}時${mm === '00' ? '' : `${n(mm)}分`}` : '';
+      return `令和${d ? n(d.year) : '　'}年${d ? n(d.month) : '　'}月${d ? n(d.day) : '　'}日${time}`;
+    };
+    /** 1列に収まる字の大きさ（数字は2桁で1字ぶん） */
+    const dateSize = (s, height) => Math.min(3.6, height / (14 + (s.time ? 6 : 0)) - 0.3).toFixed(2);
     /** 住所：1列に収まればつなげて、収まらなければ建物名を2列目に */
     const addressHtml = (address, width, height) => {
       const oneLine = [address.join('　')];
@@ -247,13 +254,8 @@
       const col = (k, html, y = H, bottom = BOTTOM) => parts.push(cell(x[k].cx, y, x[k].w, bottom - y, html));
       const NOTES_BOTTOM = 116; // 受付・祈祷日と備考の下端（その下に No. と初穂料）
 
-      const d = s.date;
       // 時刻は日付に続けて書く（例: 令和8年11月23日 10時30分）
-      const [hh, mm] = (s.time || '').split(':');
-      const time = s.time ? `　${n(hh)}時${mm === '00' ? '' : `${n(mm)}分`}` : '';
-      const dateLen = 14 + (s.time ? 6 : 0); // 1列の字数の目安（数字は2桁で1字）
-      const dateSize = Math.min(3.6, (NOTES_BOTTOM - H - 6) / dateLen - 0.3).toFixed(2);
-      col('date', centered(`令和${d ? n(d.year) : '　'}年${d ? n(d.month) : '　'}月${d ? n(d.day) : '　'}日${time}`, dateSize, 'letter-spacing:.3mm;'), H, NOTES_BOTTOM);
+      col('date', centered(dateText(s), dateSize(s, NOTES_BOTTOM - H - 6), 'letter-spacing:.3mm;'), H, NOTES_BOTTOM);
       col('notes',
         `<div style="position:absolute;inset:2.5mm 1.5mm 8mm;display:flex;justify-content:center;"><div class="v val" style="font-size:${fit(s.notes, 10.4, NOTES_BOTTOM - H - 11, 5, 1.3)}mm;line-height:1.3;">${s.notes.map(esc).join('<br>')}</div></div>
          <div style="position:absolute;left:0;right:0;bottom:2mm;text-align:center;font-size:2.6mm;font-weight:700;">A･B･C･D</div>`, H, NOTES_BOTTOM);

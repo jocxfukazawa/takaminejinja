@@ -29,6 +29,8 @@ export interface Sheet {
   fee: number;
   /** 事前にクレジットカードでお納め。備考ではなく初穂料の欄に小さく書く */
   card: boolean;
+  /** ご祈祷の時刻（例: 10:30）。備考ではなく受付・祈祷日の欄に日付に続けて書く */
+  time: string;
   /** 車名とナンバー（1行ずつ）。新車祓でなければ空 */
   car: string[];
   name: string;
@@ -49,8 +51,6 @@ export interface ChildSheet extends Omit<Sheet, 'prayers' | 'car'> {
   mother: { name: string; kana: string };
   /** 生年月日（並べ替え・ごきょうだいの年上の方を決めるのに使う） */
   birthKey: string;
-  /** ご祈祷の時刻（例: 10:30）。備考ではなく受付・祈祷日の欄に日付に続けて書く */
-  time: string;
 }
 
 const text = (v: unknown) => (v == null ? '' : Array.isArray(v) ? v.join('、') : String(v)).trim();
@@ -79,9 +79,11 @@ export function toSheet(row: SheetRow): { sheet: Sheet | null; separate: string[
   const car = text(f['車名・ナンバー']).split(/\s*\n\s*/).filter(Boolean);
   // カード払いは備考ではなく、初穂料の欄に小さく書く
   const card = common.notesAfter.includes('カード払い');
-  const notes = [...common.notesBefore, ...(haraobi === 'あり' ? ['腹帯のお祓い'] : []), ...common.notesAfter.filter((n) => n !== 'カード払い')];
+  // 時刻は備考ではなく、受付・祈祷日の欄に日付に続けて書く
+  const time = normalizeTime(f['御祈祷時刻'])?.replace(/^0/, '') ?? '';
+  const notes = [...common.notesBefore.filter((n) => !n.endsWith('〜')), ...(haraobi === 'あり' ? ['腹帯のお祓い'] : []), ...common.notesAfter.filter((n) => n !== 'カード払い')];
   const { notesBefore, notesAfter, birthKey, ...rest } = common;
-  return { separate, sheet: { ...rest, prayers: prayerNames, notes, fee, card, car } };
+  return { separate, sheet: { ...rest, prayers: prayerNames, notes, fee, card, time, car } };
 }
 
 /** 父母の名前（「父　高嶺 太郎（たかみね たろう）」の行）を父と母に分ける */
