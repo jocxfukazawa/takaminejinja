@@ -4,7 +4,8 @@
  *
  * 日付か予約番号を選ぶと、Web の予約・事前申し込みを、紙の祈祷申込書と同じ形で
  * B6 の用紙に1人1枚、祝詞用と控えの2枚ずつ印刷する。
- * 七五三詣・初宮詣は別の申込書なので、ここでは印刷せず一覧に出す。
+ * 七五三詣・初宮詣は、父母の欄がある別の形の申込書（七五三詣祈祷申込書・初宮詣祈祷申込書）で印刷する。
+ * 七五三詣と、ほかのご祈願もある方は、2種類の申込書が出る。
  */
 ---
 <!doctype html>
@@ -30,7 +31,6 @@
     .controls .print { background: #c00; color: #fff; border: 0; }
     .status { margin-top: 10px; font-size: 14px; white-space: pre-line; }
     .status.is-error { color: #c00; }
-    .separate { margin-top: 8px; padding: 8px 12px; background: #fff8e5; border: 1px solid #e6c200; font-size: 13px; }
     .sheets { display: flex; flex-wrap: wrap; gap: 16px; padding: 20px; }
 
     /* ── 申込書（B6 縦 128 × 182 mm） ── */
@@ -41,6 +41,7 @@
     }
     .sheet__title { position: absolute; left: 0; right: 0; top: 7mm; text-align: center; font-size: 7mm; font-weight: 700; letter-spacing: 3mm; }
     .sheet__title span { border-bottom: .4mm solid #111; padding: 0 1mm .5mm 4mm; }
+    .sheet__title--child { letter-spacing: .8mm; font-size: 5.8mm; right: 14mm; }
     .sheet__no { position: absolute; right: 6mm; top: 9mm; font-size: 4.2mm; letter-spacing: .3mm; }
     .sheet__copy { position: absolute; left: 6mm; top: 6mm; width: 11mm; height: 11mm; border: .3mm solid #111; border-radius: 50%; text-align: center; font-size: 6mm; line-height: 10mm; }
     .sheet__shrine { position: absolute; left: 3.5mm; bottom: 12mm; writing-mode: vertical-rl; font-size: 5mm; font-weight: 700; letter-spacing: 4mm; }
@@ -71,7 +72,6 @@
       <button type="button" class="print" id="js-print" disabled>印刷する</button>
     </form>
     <p class="status" id="js-status">日付か予約番号を入れて「表示する」を押してください。予約番号で探すと、同じ予約のご家族もまとめて出ます。</p>
-    <div class="separate" id="js-separate" hidden></div>
   </div>
   <div class="sheets" id="js-sheets"></div>
 
@@ -79,12 +79,13 @@
     const form = document.getElementById('js-form');
     const statusEl = document.getElementById('js-status');
     const sheetsEl = document.getElementById('js-sheets');
-    const separateEl = document.getElementById('js-separate');
     const printBtn = document.getElementById('js-print');
 
     const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
     /** 縦書きの中の数字は横向きのまま1文字ぶんに収める */
     const n = (v) => `<span class="num">${esc(v)}</span>`;
+    /** 和暦の年（1年は「元」年） */
+    const eraYear = (y) => (Number(y) === 1 ? '元' : n(y));
     /** 申込書の枠（表の左上からの mm） */
     const cell = (x, y, w, h, html = '', cls = '', style = '') =>
       `<div class="c ${cls}" style="left:${x}mm;top:${y}mm;width:${w}mm;height:${h}mm;${style}">${html}</div>`;
@@ -194,7 +195,7 @@
       parts.push(cell(74, 110, 17, 10, '<span style="text-align:center;line-height:1.5;">生年月日<br>年齢</span>', 'label', 'font-size:2.4mm;letter-spacing:.3mm;'));
       parts.push(cell(74, 120, 17, 36,
         `<div class="val" style="font-size:3.6mm;text-align:center;padding-top:2mm;">${esc(b?.era ?? '')}</div>
-         <div class="val" style="font-size:3.4mm;text-align:center;line-height:1.7;margin-top:1mm;">${b ? `${esc(b.year)} 年<br>${esc(b.month)} 月<br>${esc(b.day)} 日` : '年<br>月<br>日'}<br>${s.kazoe != null ? `${esc(s.kazoe)} 才` : '才'}</div>`));
+         <div class="val" style="font-size:3.4mm;text-align:center;line-height:1.7;margin-top:1mm;">${b ? `${Number(b.year) === 1 ? '元' : esc(b.year)} 年<br>${esc(b.month)} 月<br>${esc(b.day)} 日` : '年<br>月<br>日'}<br>${s.kazoe != null ? `${esc(s.kazoe)} 才` : '才'}</div>`));
       // 代表者名（会社用。今回は空欄）
       parts.push(cell(69, 110, 5, 14, 'ふりがな', 'v label', 'font-size:2.2mm;'));
       parts.push(cell(58, 110, 11, 14, '代表者名', 'v label', 'font-size:2.4mm;'));
@@ -210,6 +211,80 @@
       </section>`;
     }
 
+    /** 縦書きの欄の中身を、欄の左右の中央に置く */
+    const centered = (html, size, style = '', pad = '3mm 0') =>
+      `<div style="display:flex;justify-content:center;height:100%;padding:${pad};"><div class="v val" style="font-size:${size}mm;${style}">${html}</div></div>`;
+    /** 住所：1列に収まればつなげて、収まらなければ建物名を2列目に */
+    const addressHtml = (address, width, height) => {
+      const oneLine = [address.join('　')];
+      const a = fit(oneLine, width, height, 5.2, 1.15);
+      const lines = [...oneLine[0]].length <= Math.floor(height / Number(a)) || address.length < 2 ? oneLine : address;
+      const size = lines === oneLine ? a : fit(address, width, height, 5.2, 1.15);
+      return centered(lines.map(esc).join('<br>'), size, 'line-height:1.15;', '3mm .5mm');
+    };
+
+    /**
+     * 七五三詣・初宮詣の申込書（紙の申込書と同じ並び）。
+     * 左から 受付・祈祷日／備考／生年月日・年齢／氏名／ふりがな／母／ふりがな／父／ふりがな／住所／ふりがな。
+     * 左下に No. と初穂料、いちばん下に連絡先 TEL と 〒
+     */
+    function childSheetHtml(s, copy) {
+      const parts = [];
+      const H = 31; // 見出しの段の高さ
+      const BOTTOM = 144; // 連絡先・〒の段の上端
+      const cols = [
+        ['date', 0, 10, '受付・祈祷日'], ['notes', 10, 13.4, '備　考'], ['birth', 23.4, 12.4, '生年月日・年齢'],
+        ['name', 35.8, 11.5, '氏　名'], ['kana', 47.3, 6.2, 'ふりがな'], ['mother', 53.5, 12, '母'], ['motherKana', 65.5, 6.2, 'ふりがな'],
+        ['father', 71.7, 12.4, '父'], ['fatherKana', 84.1, 6.2, 'ふりがな'], ['address', 90.3, 12.4, '住　所'], ['addressKana', 102.7, 7.3, 'ふりがな'],
+      ];
+      const x = Object.fromEntries(cols.map(([k, cx, w]) => [k, { cx, w }]));
+      for (const [, cx, w, label] of cols) {
+        const small = label === 'ふりがな' || label.length > 4;
+        parts.push(cell(cx, 0, w, H, label, 'v label', small ? 'font-size:2.3mm;letter-spacing:.3mm;' : 'font-size:3mm;'));
+      }
+      const col = (k, html, y = H, bottom = BOTTOM) => parts.push(cell(x[k].cx, y, x[k].w, bottom - y, html));
+      const NOTES_BOTTOM = 116; // 受付・祈祷日と備考の下端（その下に No. と初穂料）
+
+      const d = s.date;
+      col('date', centered(`令和 ${d ? n(d.year) : '　'} 年 ${d ? n(d.month) : '　'} 月 ${d ? n(d.day) : '　'} 日`, 3.4, 'letter-spacing:.4mm;'), H, NOTES_BOTTOM);
+      col('notes',
+        `<div class="v val" style="position:absolute;inset:2.5mm 1.5mm 8mm;font-size:${fit(s.notes, 10.4, NOTES_BOTTOM - H - 11, 3.4, 1.35)}mm;line-height:1.35;">${s.notes.map(esc).join('<br>')}</div>
+         <div style="position:absolute;left:0;right:0;bottom:2mm;text-align:center;font-size:2.6mm;font-weight:700;">A･B･C･D</div>`, H, NOTES_BOTTOM);
+      const b = s.birth;
+      col('birth', centered(
+        `${esc(b?.era ?? '')} ${b ? eraYear(b.year) : '　'} 年 ${b ? n(b.month) : '　'} 月 ${b ? n(b.day) : '　'} 日生<br>${s.kazoe != null ? `${n(s.kazoe)} 才` : '　　才'}`,
+        3.4, 'line-height:1.6;letter-spacing:.3mm;'));
+      col('name', centered(esc(s.name), fit([s.name], 10.5, 90, 6, 1.1, 1), 'letter-spacing:1mm;', '4mm 0'), H, 134);
+      parts.push(cell(x.name.cx, 134, x.name.w, 10, esc(s.gender === '回答しない' ? '' : s.gender), 'val', 'font-size:3.6mm;text-align:center;padding-top:2mm;'));
+      col('kana', centered(esc(s.kana), fit([s.kana], 5, 106, 3.6, 1.1), 'line-height:1.1;', '2mm 0'));
+      for (const p of ['mother', 'father']) {
+        col(p, centered(esc(s[p].name), fit([s[p].name], x[p].w - 1.5, 100, 5.6, 1.1, 1), 'letter-spacing:1mm;', '4mm 0'));
+        col(`${p}Kana`, centered(esc(s[p].kana), fit([s[p].kana], 5, 106, 3.6, 1.1), 'line-height:1.1;', '2mm 0'));
+      }
+      col('address', addressHtml(s.address, 11.4, BOTTOM - H - 7));
+      col('addressKana', '');
+
+      // 左下：No.（紙の申込書の番号の欄なので空けておく）と初穂料
+      parts.push(cell(0, NOTES_BOTTOM, 23.4, 10, '<span style="font-size:2.6mm;font-weight:700;">No.</span>', '', 'padding:2mm 1.5mm;'));
+      parts.push(cell(0, NOTES_BOTTOM + 10, 23.4, BOTTOM - NOTES_BOTTOM - 10,
+        `<div class="label" style="height:6mm;border-bottom:.15mm solid #111;">初穂料</div>
+         <div class="val" style="text-align:right;padding:3mm 1.5mm 0;font-size:4.6mm;line-height:1.2;">${s.fee ? `${esc(s.fee.toLocaleString('ja-JP'))}<small style="font-size:2.8mm;">円</small>` : ''}</div>`));
+      // いちばん下：連絡先 TEL と 〒
+      parts.push(cell(0, BOTTOM, 66, 156 - BOTTOM,
+        `<span style="font-size:2.6mm;font-weight:700;">連絡先 TEL</span>　<span class="val" style="font-size:4mm;">${esc(s.tel)}</span>`, '', 'padding:3mm 2mm;'));
+      parts.push(cell(66, BOTTOM, 44, 156 - BOTTOM,
+        `<span style="font-size:3mm;font-weight:700;">〒</span> <span class="val" style="font-size:4mm;">${esc(s.zip)}</span>`, '', 'padding:3mm 2mm;'));
+
+      const title = s.kind === 'shichigosan' ? '七五三詣祈祷申込書' : '初宮詣祈祷申込書';
+      return `<section class="sheet">
+        ${copy ? '<div class="sheet__copy">控</div>' : ''}
+        <div class="sheet__no">${esc(s.no)}</div>
+        <div class="sheet__title sheet__title--child"><span>${title}</span></div>
+        <div class="sheet__shrine">高嶺神社</div>
+        <div class="sheet__table">${parts.join('')}</div>
+      </section>`;
+    }
+
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const date = form.date.value;
@@ -218,7 +293,6 @@
       statusEl.className = 'status';
       statusEl.textContent = '読み込んでいます…';
       sheetsEl.innerHTML = '';
-      separateEl.hidden = true;
       printBtn.disabled = true;
       try {
         const q = no ? `no=${encodeURIComponent(no)}` : `date=${date}`;
@@ -226,7 +300,12 @@
         const data = await res.json().catch(() => ({}));
         if (!res.ok || !data.ok) throw new Error(data.error || `読み込めませんでした（${res.status}）`);
         // 1人につき、祝詞用と控えの2枚
-        sheetsEl.innerHTML = data.sheets.map((s) => sheetHtml(s, false) + sheetHtml(s, true)).join('');
+        // 予約番号の順に、普通の申込書と七五三詣・初宮詣の申込書を並べる（同じ方は続けて）
+        const all = [
+          ...data.sheets.map((s) => ({ no: s.no, html: sheetHtml(s, false) + sheetHtml(s, true) })),
+          ...(data.children ?? []).map((s) => ({ no: s.no, html: childSheetHtml(s, false) + childSheetHtml(s, true) })),
+        ].sort((a, b) => a.no.localeCompare(b.no));
+        sheetsEl.innerHTML = all.map((a) => a.html).join('');
         await document.fonts.ready;
         // 横書きの欄（ナンバー）は、1行のまま欄の幅に収まるまで字を小さくする（車名は折り返す）
         // 車名は2行までに収める（長い車名でナンバーが欄からはみ出さないように）
@@ -245,16 +324,11 @@
             el.style.fontSize = `${size.toFixed(1)}mm`;
           }
         });
-        statusEl.textContent = data.sheets.length
-          ? `${data.sheets.length}人分（${data.sheets.length * 2}枚）を表示しています。プリンターの用紙を B6 にして印刷してください。`
+        statusEl.textContent = all.length
+          ? `申込書 ${all.length}枚分（控えを含めて${all.length * 2}枚）を表示しています。プリンターの用紙を B6 にして印刷してください。`
           : '印刷する申込書はありません。';
-        if (data.separate.length) {
-          separateEl.innerHTML = '<strong>別の申込書（七五三詣・初宮詣）で受け付ける方：</strong> ' +
-            data.separate.map((p) => `${esc(p.no)} ${esc(p.name)}（${p.prayers.map(esc).join('・')}）`).join('、');
-          separateEl.hidden = false;
-        }
         await document.fonts.ready;
-        printBtn.disabled = !data.sheets.length;
+        printBtn.disabled = !all.length;
       } catch (err) {
         statusEl.className = 'status is-error';
         statusEl.textContent = err.message;

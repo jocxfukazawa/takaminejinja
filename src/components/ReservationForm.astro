@@ -144,10 +144,18 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
         </div>
       </div>
       <div class="p-contact-form__row" data-extra="parents" hidden>
-        <div class="p-contact-form__label"><label for="p__i__-parents">父母のお名前</label><span class="p-required">必須</span></div>
-        <div class="p-contact-form__field">
-          <textarea id="p__i__-parents" name="p__i__-parents" rows="3" maxlength="1000" data-required placeholder={'父　高嶺　太郎（たかみね　たろう）\n母　高嶺　花子（たかみね　はなこ）'}></textarea>
-          <p class="p-reserve__help">父母のお名前（ふりがな）を、改行して1人ずつご記入ください。</p>
+        <div class="p-contact-form__label">父母のお名前<span class="p-required">必須</span></div>
+        <div class="p-contact-form__field" data-parents>
+          {[['father', '父', '高嶺　太郎', 'たかみね　たろう'], ['mother', '母', '高嶺　花子', 'たかみね　はなこ']].map(([key, label, name, kana]) => (
+            <div class="p-reserve__parent">
+              <span class="p-reserve__parent-label">{label}</span>
+              <div class="p-reserve__pair">
+                <label><span>お名前</span><input name={`p__i__-${key}`} type="text" maxlength="100" placeholder={name} /></label>
+                <label><span>ふりがな</span><input name={`p__i__-${key}-kana`} type="text" maxlength="100" placeholder={kana} /></label>
+              </div>
+            </div>
+          ))}
+          <p class="p-reserve__help">父・母のどちらかお一人だけでも構いません。</p>
           <p class="p-reserve__help p-reserve__copied" data-parents-copied hidden>前の方と同じ父母のお名前を入れました。違う場合は書き換えてください。</p>
         </div>
       </div>
@@ -312,45 +320,56 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
   };
 
   // ── 父母のお名前：ごきょうだいなどで2人目以降にも必要なときは、前の方と同じものを入れておく ──
-  const parentsOf = (card: Element) => card.querySelector<HTMLTextAreaElement>('textarea[name$="-parents"]')!;
+  // 父・母のお名前とふりがなの4つの欄を、ひとまとまりとして写す
+  const PARENT_KEYS = ['father', 'father-kana', 'mother', 'mother-kana'];
+  const prefixOf = (card: Element) => card.querySelector<HTMLInputElement>('input[name$="-sei"]')!.name.replace(/-sei$/, '');
+  const parentFields = (card: Element) => PARENT_KEYS.map((k) => card.querySelector<HTMLInputElement>(`input[name="${prefixOf(card)}-${k}"]`)!);
+  const parentValues = (card: Element) => JSON.stringify(parentFields(card).map((f) => f.value));
+  const setParentValues = (card: Element, json: string) => {
+    const values = JSON.parse(json) as string[];
+    parentFields(card).forEach((f, n) => (f.value = values[n]));
+  };
+  const hasParents = (card: Element) => parentFields(card).some((f) => f.value.trim());
 
   /** 欄が空なら、前の方（入力のある最後の方）の父母のお名前を入れる */
   const copyParents = (card: HTMLElement) => {
-    const field = parentsOf(card);
-    if (field.value.trim()) return;
+    if (hasParents(card)) return;
     const cards = [...persons.querySelectorAll<HTMLElement>('[data-person]')];
     const source = cards
       .slice(0, cards.indexOf(card))
       .reverse()
-      .map(parentsOf)
-      .find((f) => !f.closest('[hidden]') && f.value.trim());
+      .find((c) => !c.querySelector('[data-extra="parents"]')!.hasAttribute('hidden') && hasParents(c));
     if (!source) return;
-    field.value = source.value;
-    field.dataset.copied = source.value;
-    field.dataset.last = source.value;
+    const values = parentValues(source);
+    setParentValues(card, values);
+    card.dataset.parentsCopied = values;
+    card.dataset.parentsLast = values;
     // 写し元も写したものなら、大元の方を覚えておく（大元を直したら、写した欄がすべてそろうように）
-    field.dataset.from = source.dataset.copied !== undefined && source.dataset.from ? source.dataset.from : source.name;
+    card.dataset.parentsFrom = source.dataset.parentsCopied !== undefined && source.dataset.parentsFrom ? source.dataset.parentsFrom : prefixOf(source);
     card.querySelector<HTMLElement>('[data-parents-copied]')!.hidden = false;
   };
 
   /** 父母のお名前を書き換えたとき：自分で直したら「自動で入れた」印を外し、写した先の欄にも反映する */
   persons.addEventListener('input', (e) => {
-    const field = e.target as HTMLTextAreaElement;
-    if (!field.matches?.('textarea[name$="-parents"]')) return;
-    const before = field.dataset.last ?? '';
-    if (field.dataset.copied !== undefined && field.value !== field.dataset.copied) {
-      delete field.dataset.copied;
-      delete field.dataset.from;
-      field.closest('[data-person]')!.querySelector<HTMLElement>('[data-parents-copied]')!.hidden = true;
+    const field = e.target as HTMLInputElement;
+    if (!field.closest?.('[data-parents]')) return;
+    const card = field.closest<HTMLElement>('[data-person]')!;
+    const before = card.dataset.parentsLast ?? JSON.stringify(PARENT_KEYS.map(() => ''));
+    const now = parentValues(card);
+    if (card.dataset.parentsCopied !== undefined && now !== card.dataset.parentsCopied) {
+      delete card.dataset.parentsCopied;
+      delete card.dataset.parentsFrom;
+      card.querySelector<HTMLElement>('[data-parents-copied]')!.hidden = true;
     }
-    persons.querySelectorAll<HTMLTextAreaElement>('textarea[name$="-parents"]').forEach((other) => {
-      if (other.dataset.from === field.name && other.dataset.copied === before && other.value === before) {
-        other.value = field.value;
-        other.dataset.copied = field.value;
-        other.dataset.last = field.value;
+    const me = prefixOf(card);
+    persons.querySelectorAll<HTMLElement>('[data-person]').forEach((other) => {
+      if (other.dataset.parentsFrom === me && other.dataset.parentsCopied === before && parentValues(other) === before) {
+        setParentValues(other, now);
+        other.dataset.parentsCopied = now;
+        other.dataset.parentsLast = now;
       }
     });
-    field.dataset.last = field.value;
+    card.dataset.parentsLast = now;
   });
 
   /** 「1人目（代表の方）」「2人目」…の見出しと、追加ボタンの表示を整える */
@@ -575,6 +594,14 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
         ? !form.querySelector(`input[name="${el.name}"]:checked`)
         : !el.value.trim();
       if (empty) missing.push(el.type === 'radio' ? el.closest('.p-contact-form__field')! : el);
+    });
+    // 父母のお名前：出ているときは、父・母のどちらか1人以上。お名前を入れた方は、ふりがなも
+    persons.querySelectorAll<HTMLElement>('[data-person]').forEach((card) => {
+      if (card.querySelector('[data-extra="parents"]')!.hasAttribute('hidden')) return;
+      const [father, fatherKana, mother, motherKana] = parentFields(card);
+      if (!father.value.trim() && !mother.value.trim()) missing.push(father, mother);
+      if (father.value.trim() && !fatherKana.value.trim()) missing.push(fatherKana);
+      if (mother.value.trim() && !motherKana.value.trim()) missing.push(motherKana);
     });
     // ご祈願内容は、お一人につき1つ以上
     persons.querySelectorAll<HTMLElement>('[data-prayers]').forEach((el) => {
