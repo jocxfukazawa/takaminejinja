@@ -217,6 +217,15 @@ Web の予約・事前申し込みを、紙の祈祷申込書（B6・縦書き�
 - プリンターは「通常使うプリンター」にし、印刷設定の用紙サイズを B6 にしておく
 - パソコンがスリープしないよう、電源の設定を「なし」にしておく
 
+Mac の場合は、次の2行をデスクトップに `当日受付の自動印刷.command` として保存し、`chmod +x` で実行できるようにしてダブルクリックで起動します（プリンターは「システム設定 → プリンタとスキャナ」でデフォルトにする）。
+
+```
+#!/bin/bash
+open -na "Google Chrome" --args --kiosk-printing --user-data-dir="$HOME/takamine-print" "https://admin.takaminejinja.pages.dev/admin/reception/"
+```
+
+確認画面なしの印刷は、その Chrome で最後に使ったプリンターと用紙の設定で印刷されます。Windows でも Mac でも、当日の前に一度だけ `--kiosk-printing` を付けずに同じ `--user-data-dir` で開き、手で「印刷」してプリンター・用紙 B6・余白なしを選んでおいてください。
+
 ### 設定（Cloudflare Pages の環境変数）
 
 | 名前 | 内容 |
