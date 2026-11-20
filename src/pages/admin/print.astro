@@ -146,7 +146,8 @@
       parts.push(cell(0, 114, 36, 10, '<span style="font-size:2.6mm;font-weight:700;">No.</span>', '', 'padding:2mm 1.5mm;'));
       parts.push(cell(0, 124, 36, 18,
         `<div class="label" style="height:6mm;border-bottom:.15mm solid #111;">初　穂　料</div>
-         <div class="val" style="text-align:right;padding:2.5mm 3mm 0;font-size:5.5mm;line-height:1.2;">${s.fee ? `${esc(s.fee.toLocaleString('ja-JP'))}<small style="font-size:3.2mm;">円</small>` : ''}</div>`));
+         <div class="val" style="text-align:right;padding:2mm 3mm 0;font-size:5.5mm;line-height:1.2;">${s.fee ? `${esc(s.fee.toLocaleString('ja-JP'))}<small style="font-size:3.2mm;">円</small>` : ''}</div>
+         ${s.card ? '<div class="val" style="position:absolute;left:1.5mm;bottom:.8mm;font-size:2.6mm;">カード払い</div>' : ''}`));
       parts.push(cell(0, 142, 36, 14,
         `<div style="font-size:2.6mm;font-weight:700;padding:1mm 1.5mm;line-height:1.3;">連絡先 TEL</div>
          <div class="val" style="font-size:4mm;padding:1mm 1.5mm;line-height:1.3;">${esc(s.tel)}</div>`));
