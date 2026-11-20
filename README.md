@@ -181,3 +181,56 @@ Web の予約・事前申し込みを、紙の祈祷申込書（B6・縦書き�
   - takaminejinja.jp の DNS はさくらにあり、Cloudflare Access を本番のアドレスに付けられないため、この形にしている
   - **main を更新したら、`admin` ブランチにも取り込む**（`git checkout admin && git merge --no-edit main && git push origin admin`）。同じコミットのままだと確認用アドレスが作り直されないことがあるので、マージのコミットを作る
 
+
+## 黒星祈願祭の当日受付（/reception/）
+
+黒星祈願祭の当日、参拝の方がご自分のスマホや神社のタブレットで申し込むページです。紙の申込書に書いていただく代わりに使います。
+
+- 境内に掲示する QR コードから開きます（URL は `https://www.takaminejinja.jp/reception/?k=その日だけの記号`）
+- URL の記号は、日付と環境変数 `RECEPTION_SECRET`（神社だけが知っている元の値）から計算します（`src/lib/reception-key.ts`）。日ごとに変わるので、9日の QR コードは9日にしか使えません（写真に撮られても翌日には使えない）
+- 受け付ける日時は `src/lib/reservation.ts` の `RECEPTION_WINDOWS`（毎年書き換える）。その時間の外は申し込めません
+- 入力はご予約のフォームとほぼ同じです（ご家族はまとめて。日時・メールアドレス・納め方は聞きません）
+- 初穂料は計算した目安の金額を入れておき、ご本人が増やせます（減らせません）
+- 「申し込む」を押すと、その場で Airtable に「予約確定」・受付経路「当日受付」・御祈祷日は今日で入り、画面に受付番号（W から始まる番号）と初穂料が出ます
+
+### 掲示用の QR コード（/admin/reception-qr/）
+
+`https://admin.takaminejinja.pages.dev/admin/reception-qr/` を開くと、受付の日ごとに、その日だけ使える QR コードの入った A4 のポスターが出ます。前もって全部印刷しておき、**その日の朝に、その日のポスターに貼り替えます**。日付や元の値を変えると、QR コードも変わります。
+
+### 申込書の自動印刷（社務所のパソコン：/admin/reception/）
+
+社務所のパソコンで `https://admin.takaminejinja.pages.dev/admin/reception/` を開いたままにしておくと、10秒ごとに新しい当日受付を探し、見つけたら申込書（祝詞用と控え。七五三詣・初宮詣は専用の申込書）を B6 で印刷します。
+
+- 「自動印刷を始める」を押すと動き出します。始める前からある、まだ印刷していない受付は、印刷するか聞きます
+- 書き込みの途中で印刷しないよう、同じ受付を2回続けて見てから印刷します（申し込みから印刷まで10〜20秒ほど）
+- 印刷したかどうかはそのパソコンのブラウザに覚えておきます。一覧の「もう一度印刷」で印刷し直せます
+- 目安より多くお納めの分は、代表の方の申込書の初穂料に足して書きます（印刷ページ /admin/print/ で印刷し直しても同じ）
+
+印刷の確認画面を出さずに印刷するため、Chrome を次のように起動するショートカットを作ります（Windows）。
+
+```
+"C:\Program Files\Google\Chrome\Application\chrome.exe" --kiosk-printing --user-data-dir="C:\takamine-print" https://admin.takaminejinja.pages.dev/admin/reception/
+```
+
+- `--kiosk-printing`：確認画面を出さずに、Windows の「通常使うプリンター」へすぐ印刷する
+- `--user-data-dir`：ふだんの Chrome とは別に起動する（ふだんの Chrome が開いていても設定が効くように）。初回はここでログインする
+- プリンターは「通常使うプリンター」にし、印刷設定の用紙サイズを B6 にしておく
+- パソコンがスリープしないよう、電源の設定を「なし」にしておく
+
+Mac の場合は、次の2行をデスクトップに `当日受付の自動印刷.command` として保存し、`chmod +x` で実行できるようにしてダブルクリックで起動します（プリンターは「システム設定 → プリンタとスキャナ」でデフォルトにする）。
+
+```
+#!/bin/bash
+open -na "Google Chrome" --args --kiosk-printing --user-data-dir="$HOME/takamine-print" "https://admin.takaminejinja.pages.dev/admin/reception/"
+```
+
+確認画面なしの印刷は、その Chrome で最後に使ったプリンターと用紙の設定で印刷されます。Windows でも Mac でも、当日の前に一度だけ `--kiosk-printing` を付けずに同じ `--user-data-dir` で開き、手で「印刷」してプリンター・用紙 B6・余白なしを選んでおいてください。
+
+### 設定（Cloudflare Pages の環境変数）
+
+| 名前 | 内容 |
+| --- | --- |
+| `RECEPTION_SECRET` | URL の記号を計算する元の値（長めの、推測されにくい文字列）。**本番とプレビューに同じ値を入れる**（ポスターは admin＝プレビューで作り、申し込みは本番で受けるため）。変えると、印刷済みのポスターは使えなくなる |
+| `RECEPTION_ALWAYS_OPEN` | `1` にすると日時に関係なく受け付け、QR コードのページに今日だけ使える試し用のポスターも出る。**プレビュー（試し）だけに設定し、本番には入れない** |
+
+- Airtable の受付メール・確定メールの Automations は、受付経路が「当日受付」の行では送らないよう条件を入れてください（メールアドレスは聞いていません）

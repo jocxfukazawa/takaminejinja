@@ -1,0 +1,124 @@
+---
+/**
+ * 当日受付の、掲示用の QR コード（ポスター）を印刷するページ（神社の方だけ。Cloudflare Access のログインが必要）
+ *
+ * 当日受付の日ごとに、その日だけ使える URL の QR コードを A4 のポスターにする。
+ * 3日分を前もって印刷しておき、その日の朝に貼り替えていただく。
+ */
+---
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>当日受付の QR コード - 高嶺神社</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@500;700&display=block" />
+  <style is:global>
+    @page { size: A4; margin: 0; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #e9e9e9; color: #111; font-family: "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif; }
+    .controls { position: sticky; top: 0; z-index: 2; padding: 14px 20px; background: #fff; border-bottom: 1px solid #ccc; }
+    .controls h1 { margin: 0 0 8px; font-size: 18px; }
+    .controls p { margin: 4px 0; font-size: 14px; }
+    .controls button { margin-top: 8px; padding: 8px 18px; font: inherit; cursor: pointer; background: #c00; color: #fff; border: 0; }
+    .status.is-error { color: #c00; font-weight: 700; }
+    .posters { display: flex; flex-wrap: wrap; gap: 20px; padding: 20px; }
+
+    /* ── ポスター（A4 縦 210 × 297 mm） ── */
+    .poster {
+      position: relative; width: 210mm; height: 297mm; overflow: hidden; background: #fff; padding: 15mm 16mm;
+      font-family: "Noto Serif JP", "Hiragino Mincho ProN", "Yu Mincho", serif; text-align: center;
+      box-shadow: 0 1px 4px rgba(0,0,0,.2);
+    }
+    .poster__frame { position: absolute; inset: 8mm; border: 1.2mm solid #b5121b; }
+    .poster__shrine { margin: 0; font-size: 6.5mm; letter-spacing: 2mm; }
+    .poster__event { margin: 1mm 0 0; font-size: 8.5mm; font-weight: 700; letter-spacing: 1.5mm; }
+    .poster__date { margin: 4mm auto 0; display: inline-block; padding: 1.5mm 8mm; background: #b5121b; color: #fff; font-size: 12mm; font-weight: 700; letter-spacing: 1mm; }
+    .poster__title { margin: 4mm 0 0; font-size: 9mm; font-weight: 700; }
+    .poster__lead { margin: 3mm 0 0; font-size: 5mm; line-height: 1.55; }
+    .poster__qr { width: 96mm; height: 96mm; margin: 6mm auto 0; }
+    .poster__qr svg { width: 100%; height: 100%; display: block; }
+    .poster__steps { width: 172mm; margin: 6mm auto 0; padding: 0; list-style: none; text-align: left; font-size: 5mm; line-height: 1.5; }
+    .poster__steps li { margin-top: 1.5mm; padding-left: 9mm; text-indent: -9mm; }
+    .poster__steps b { display: inline-block; width: 7mm; height: 7mm; margin-right: 2mm; border-radius: 50%; background: #b5121b; color: #fff; text-align: center; text-indent: 0; font-size: 4.4mm; line-height: 7mm; }
+    .poster__time { margin: 5mm 0 0; font-size: 6.4mm; font-weight: 700; }
+    .poster__note { margin: 3mm 0 0; font-size: 4.2mm; line-height: 1.55; }
+    .poster__url { position: absolute; left: 0; right: 0; bottom: 10.5mm; font-family: monospace; font-size: 3mm; color: #555; }
+    .poster__test { position: absolute; left: 12mm; top: 12mm; padding: 1mm 3mm; border: .5mm solid #c00; color: #c00; font-size: 5mm; font-weight: 700; }
+    @media print {
+      body { background: #fff; }
+      .controls { display: none; }
+      .posters { display: block; padding: 0; }
+      .poster { box-shadow: none; page-break-after: always; break-after: page; }
+    }
+  </style>
+</head>
+<body>
+  <div class="controls">
+    <h1>当日受付の掲示用 QR コード（黒星祈願祭）</h1>
+    <p>日ごとに、その日だけ使える QR コードです。前もって全部印刷しておき、<strong>その日の朝に、その日のポスターに貼り替えてください</strong>（前の日のものは使えません）。</p>
+    <p>用紙は A4 です。印刷の設定で「余白なし」か「なし」を選んでください。</p>
+    <p class="status" id="js-status">読み込んでいます…</p>
+    <button type="button" id="js-print" disabled>印刷する</button>
+  </div>
+  <div class="posters" id="js-posters"></div>
+
+  <script>
+    import qrcode from 'qrcode-generator';
+
+    type Day = { date: string; label: string; from?: string; to?: string; url: string };
+    const statusEl = document.getElementById('js-status')!;
+    const postersEl = document.getElementById('js-posters')!;
+    const printBtn = document.getElementById('js-print') as HTMLButtonElement;
+    const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+    const hm = (t = '') => t.replace(/^0/, '');
+
+    /** QR コード（SVG）。読み取りやすいよう、誤り訂正は M */
+    const qrSvg = (url: string) => {
+      const qr = qrcode(0, 'M');
+      qr.addData(url);
+      qr.make();
+      return qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
+    };
+
+    const posterHtml = (d: Day, test = false) => `<section class="poster">
+      <div class="poster__frame"></div>
+      ${test ? '<div class="poster__test">試し用</div>' : ''}
+      <p class="poster__shrine">高嶺神社</p>
+      <p class="poster__event">黒星祈願祭</p>
+      <p class="poster__date">${esc(d.label)}</p>
+      <p class="poster__title">ご祈祷のお申し込み</p>
+      <p class="poster__lead">申込書にご記入いただく代わりに、<br>スマートフォンからお申し込みいただけます。</p>
+      <div class="poster__qr">${qrSvg(d.url)}</div>
+      <ol class="poster__steps">
+        <li><b>1</b>この QR コードを、スマートフォンのカメラで読み取ってください。</li>
+        <li><b>2</b>お名前・生年月日・ご祈願などを入力し、「申し込む」を押してください。</li>
+        <li><b>3</b>画面に出る<strong>受付番号</strong>を、社務所の受付でお伝えください。初穂料は受付でお納めください。</li>
+      </ol>
+      ${d.from ? `<p class="poster__time">受付時間　${hm(d.from)}〜${hm(d.to)}</p>` : ''}
+      <p class="poster__note">この QR コードは <strong>${esc(d.label)}</strong> だけお使いいただけます。<br>スマートフォンをお持ちでない方は、社務所の受付で申込書にご記入ください。</p>
+      <p class="poster__url">${esc(d.url)}</p>
+    </section>`;
+
+    (async () => {
+      try {
+        const res = await fetch('/api/admin/reception-urls', { cache: 'no-store', credentials: 'same-origin' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.ok) throw new Error(data.error || `読み込めませんでした（${res.status}）`);
+        const days = data.days as Day[];
+        postersEl.innerHTML = days.map((d) => posterHtml(d)).join('') + (data.test ? posterHtml(data.test, true) : '');
+        statusEl.textContent = `${days.length}日分のポスターを表示しています。${data.test ? '（いちばん後ろは、今日だけ使える試し用です。本番では使えません）' : ''}`;
+        await document.fonts.ready;
+        printBtn.disabled = false;
+      } catch (e) {
+        statusEl.className = 'status is-error';
+        statusEl.textContent = (e as Error).message;
+      }
+    })();
+    printBtn.addEventListener('click', () => window.print());
+  </script>
+</body>
+</html>

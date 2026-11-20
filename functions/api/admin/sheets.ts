@@ -1,8 +1,9 @@
 /**
- * 祈祷申込書の印刷用に、予約受付の表から Web の予約・事前申し込みを返す（神社の方だけ）。
+ * 祈祷申込書の印刷用に、予約受付の表から Web の予約・事前申し込み・当日受付を返す（神社の方だけ）。
  *
  *   GET /api/admin/sheets?date=2027-01-10   その日の予約・事前申し込み（キャンセルを除く）
  *   GET /api/admin/sheets?no=W000121        その予約番号の予約（同じ予約グループのご家族も）
+ *   GET /api/admin/sheets?reception=2027-01-09  その日の当日受付だけ（当日受付の自動印刷のページが使う）
  *
  * sheets は普通の祈祷申込書、children は七五三詣・初宮詣の申込書（どちらも1人1枚）。
  *
@@ -11,7 +12,7 @@
 
 import { accessUser, type AccessEnv } from '../../../src/lib/access';
 import { isConfigured, listRows, type AirtableEnv } from '../../../src/lib/airtable';
-import { childFees, toChildSheets, toSheet } from '../../../src/lib/sheet';
+import { addReceptionExtra, childFees, toChildSheets, toSheet } from '../../../src/lib/sheet';
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -22,7 +23,7 @@ const json = (body: unknown, status = 200) =>
 const FIELDS = [
   '予約番号', '予約グループ', '代表者', '予約ステータス', '受付経路', '御祈祷日', '御祈祷時刻', '祈祷方法',
   '名前', 'ふりがな', '名前の特殊文字', '性別', '生年月日', '郵便番号', '住所', '建物名等', '電話番号',
-  '御祈祷内容', '父母の名前', '腹帯のお祓い', '車名・ナンバー', '納入方法',
+  '御祈祷内容', '父母の名前', '腹帯のお祓い', '車名・ナンバー', '納入方法', '予約の初穂料合計',
 ];
 
 export const onRequestGet: PagesFunction<AirtableEnv & AccessEnv> = async ({ request, env }) => {
@@ -32,9 +33,12 @@ export const onRequestGet: PagesFunction<AirtableEnv & AccessEnv> = async ({ req
   const url = new URL(request.url);
   const date = url.searchParams.get('date') ?? '';
   const no = (url.searchParams.get('no') ?? '').toUpperCase();
-  const web = `OR({受付経路} = 'Webフォーム', {受付経路} = '事前申込')`;
+  const reception = url.searchParams.get('reception') ?? '';
+  const web = `OR({受付経路} = 'Webフォーム', {受付経路} = '事前申込', {受付経路} = '当日受付')`;
   let formula: string;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(reception)) {
+    formula = `AND({受付経路} = '当日受付', {予約ステータス} != 'キャンセル', LEFT({御祈祷日}, 10) = '${reception.replace(/-/g, '/')}')`;
+  } else if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     formula = `AND(${web}, {予約ステータス} != 'キャンセル', LEFT({御祈祷日}, 10) = '${date.replace(/-/g, '/')}')`;
   } else if (/^W\d{6}$/.test(no)) {
     formula = `AND(${web}, OR({予約番号} = '${no}', {予約グループ} = '${no}'))`;
@@ -53,6 +57,7 @@ export const onRequestGet: PagesFunction<AirtableEnv & AccessEnv> = async ({ req
     const sheets = rows.map((row) => toSheet(row).sheet).filter((s) => s != null);
     // 七五三詣・初宮詣は別の形の申込書（ごきょうだいの初穂料は、年上の方の1枚にまとめて書く）
     const children = childFees(rows.flatMap(toChildSheets));
+    addReceptionExtra(rows, [...sheets, ...children]);
     return json({ ok: true, sheets, children });
   } catch (e) {
     console.error('admin/sheets: Airtable の読み込みに失敗', e);

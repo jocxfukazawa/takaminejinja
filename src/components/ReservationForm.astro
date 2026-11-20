@@ -4,19 +4,33 @@
  *
  * advance を付けると「事前申し込み」になる：時刻は選ばず、ご来社予定日だけを選ぶ。
  * 黒星祈願祭など、予約を受けずに来られた順にご案内する日のためのもの（src/lib/reservation.ts の ADVANCE_DATES）
+ *
+ * reception を付けると「当日受付」になる：黒星祈願祭の当日、参拝の方がその場で入力する（/reception/）。
+ * 日時・メールアドレス・納め方は聞かず、初穂料は計算した金額を入れておき、増やせるようにする。
+ * 送信すると受付が確定し、申込書がプリンターから出る
  */
 import { PRAYERS, PRAYER_OTHER, PHONE, MAX_PERSONS, ADVANCE_CUTOFF_HOUR } from '../lib/reservation';
 
 interface Props {
   advance?: boolean;
+  reception?: boolean;
 }
-const { advance = false } = Astro.props;
+const { advance = false, reception = false } = Astro.props;
+const mode = reception ? 'reception' : advance ? 'advance' : 'reserve';
 
 // Turnstile のサイトキー（未設定時は Cloudflare 公式のテスト用キー＝常に成功）
 const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x00000000000000000000AA';
 ---
-<form class="p-contact-form p-reserve" id="js-reserve-form" action="/api/reservation" method="post" novalidate data-mode={advance ? 'advance' : 'reserve'}>
-  {advance ? (
+<form class="p-contact-form p-reserve" id="js-reserve-form" action="/api/reservation" method="post" novalidate data-mode={mode}>
+  {reception ? (
+    <>
+      <input type="hidden" name="mode" value="reception" />
+      <input type="hidden" name="k" value="" />
+      <input type="hidden" name="method" value="来社" />
+      <input type="hidden" name="payment" value="当日ご社頭でお納め" />
+      <input type="hidden" id="date" name="date" value="" />
+    </>
+  ) : advance ? (
     <>
       <input type="hidden" name="mode" value="advance" />
       <input type="hidden" name="method" value="来社" />
@@ -114,7 +128,7 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
         <div class="p-contact-form__label"><label for="p__i__-birthday">生年月日</label><span class="p-required">必須</span></div>
         <div class="p-contact-form__field">
           <input id="p__i__-birthday" name="p__i__-birthday" type="date" min="1900-01-01" required />
-          {advance && (
+          {(advance || reception) && (
             <div class="p-reserve__fortune" data-fortune hidden aria-live="polite">
               <p data-fortune-text></p>
               <p class="p-reserve__fortune-note">※ 生まれ年から計算した目安です。正確には<a href="/event/kuroboshi/" target="_blank" rel="noopener">黒星祈願祭のページ</a>の黒星・厄年の表でお確かめください。</p>
@@ -195,13 +209,25 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
       <p class="p-reserve__help">当日に連絡のつく電話番号をご記入ください。</p>
     </div>
   </div>
+  {!reception && (
   <div class="p-contact-form__row">
     <div class="p-contact-form__label"><label for="email">メールアドレス</label><span class="p-required">必須</span></div>
     <div class="p-contact-form__field"><input id="email" name="email" type="email" maxlength="200" required autocomplete="email" /></div>
   </div>
+  )}
 
   <h2 class="p-reserve__heading">初穂料・連絡事項</h2>
 
+  {reception ? (
+  <div class="p-contact-form__row">
+    <div class="p-contact-form__label"><label for="fee-total">初穂料</label><span class="p-required">必須</span></div>
+    <div class="p-contact-form__field">
+      <div class="p-reserve__fee" id="js-fee-lines" aria-live="polite">ご祈願内容を選ぶと、初穂料の目安が出ます。</div>
+      <p class="p-reserve__fee-input"><input id="fee-total" name="fee-total" type="number" inputmode="numeric" min="0" step="1" required class="p-reserve__short" /> 円</p>
+      <p class="p-reserve__help">目安の金額を入れています。お心持ちで増やしていただくこともできます。初穂料は、このあと受付でお納めください。</p>
+    </div>
+  </div>
+  ) : (
   <div class="p-contact-form__row">
     <div class="p-contact-form__label" id="payment-label">初穂料の納め方<span class="p-required">必須</span></div>
     <div class="p-contact-form__field p-reserve__choices" role="radiogroup" aria-labelledby="payment-label">
@@ -213,6 +239,7 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
         : 'クレジットカードの場合は、予約確定後に納め方をメールでお知らせいたします。'}</p>
     </div>
   </div>
+  )}
   <div class="p-contact-form__row">
     <div class="p-contact-form__label"><label for="message">連絡事項</label><span class="p-required" id="js-message-required" hidden>必須</span></div>
     <div class="p-contact-form__field">
@@ -226,23 +253,28 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
     <label>空欄のままにしてください <input type="text" name="website" tabindex="-1" autocomplete="off" /></label>
   </div>
   <div class="cf-turnstile" data-sitekey={siteKey} data-language="ja"></div>
-  {advance ? (
+  {reception ? (
+    <p class="p-contact-form__note">※ 「申し込む」を押すと受付が確定し、社務所で申込書が印刷されます。<br />※ 次の画面に出る受付番号を、受付でお伝えください。</p>
+  ) : advance ? (
     <p class="p-contact-form__note">※ 送信後、ご入力のメールアドレスに「申込番号」の入ったメールが届きます。当日は、受付で申込番号をお伝えください。<br />※ メールが届かない場合は、迷惑メールのフォルダもご確認ください。</p>
   ) : (
     <p class="p-contact-form__note">※ 送信の時点では仮予約です。神社で確認のうえ、ご予約確定のメールをお送りします。<br />※ 送信後、ご入力のメールアドレスに受付のメールが届きます。届かない場合は、迷惑メールのフォルダもご確認ください。</p>
   )}
   <p class="p-contact-form__error" id="js-form-error" role="alert" hidden></p>
-  <p class="p-contact-form__submit"><button type="submit" class="p-btn">{advance ? '事前申し込みを送信する' : '仮予約を送信する'}</button></p>
+  <p class="p-contact-form__submit"><button type="submit" class="p-btn">{reception ? '申し込む' : advance ? '事前申し込みを送信する' : '仮予約を送信する'}</button></p>
 </form>
 
 <script>
-  import { KUROBOSHI_YEAR, MAX_PERSONS, advanceDates, dateLabel, yearFortune } from '../lib/reservation';
+  import { KUROBOSHI_YEAR, MAX_PERSONS, PRAYER_OTHER, advanceDates, dateLabel, feeSummary, yearFortune } from '../lib/reservation';
 
   type Day = { date: string; label: string; slots: { time: string; available: boolean }[] };
 
   const form = document.getElementById('js-reserve-form') as HTMLFormElement;
   /** 事前申し込み（時刻を選ばない）かどうか */
   const advance = form.dataset.mode === 'advance';
+  /** 当日受付（黒星祈願祭の当日、その場で受付が確定する） */
+  const reception = form.dataset.mode === 'reception';
+  const submitLabel = reception ? '申し込む' : advance ? '事前申し込みを送信する' : '仮予約を送信する';
   const dateSelect = form.querySelector<HTMLSelectElement>('#date')!;
   const times = document.getElementById('js-times');
   const slotsError = document.getElementById('js-slots-error');
@@ -257,7 +289,7 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
 
   /** 選ばれているご祈祷方法（事前申し込みは来社だけ） */
   const methodValue = () =>
-    advance ? '来社' : form.querySelector<HTMLInputElement>('input[name=method]:checked')?.value ?? '';
+    advance || reception ? '来社' : form.querySelector<HTMLInputElement>('input[name=method]:checked')?.value ?? '';
 
   /** ご祈祷方法に合わせて、日時の欄と「当日ご社頭でお納め」を出し入れする */
   const toggleVisit = () => {
@@ -265,9 +297,11 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
     const visitFields = form.querySelector<HTMLElement>('[data-show="visit"]');
     if (visitFields) visitFields.hidden = !visit;
     // 郵送では社頭でお納めいただけないので、選択肢ごと隠す（選んでいたら外す）
-    const onsite = form.querySelector<HTMLElement>('[data-payment-onsite]')!;
-    onsite.hidden = !visit;
-    if (!visit) onsite.querySelector('input')!.checked = false;
+    const onsite = form.querySelector<HTMLElement>('[data-payment-onsite]');
+    if (onsite) {
+      onsite.hidden = !visit;
+      if (!visit) onsite.querySelector('input')!.checked = false;
+    }
     togglePayment();
   };
 
@@ -446,7 +480,7 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
   };
 
   const loadSlots = async () => {
-    if (advance || !slotsError) return;
+    if (advance || reception || !slotsError) return;
     const keep = dateSelect.value;
     dateSelect.disabled = true;
     slotsError.hidden = true;
@@ -545,6 +579,44 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
 
   zip.addEventListener('input', lookupAddress);
 
+  // ── 当日受付の初穂料：ご祈願内容から目安を出し、その金額以上で入力できるようにする ──
+  const initFee = () => {
+    const lines = document.getElementById('js-fee-lines')!;
+    const input = form.querySelector<HTMLInputElement>('#fee-total')!;
+    /** ご本人が金額を書き換えたか（書き換えていなければ、目安が変わったら合わせる） */
+    let edited = false;
+    input.addEventListener('input', () => {
+      edited = true;
+    });
+    const update = () => {
+      const people = [...persons.querySelectorAll<HTMLElement>('[data-person]')].map((card) => ({
+        prayerNames: [...card.querySelectorAll<HTMLInputElement>('[data-prayers] input:checked')].map((c) =>
+          c.value === PRAYER_OTHER ? 'その他のご祈願' : c.value,
+        ),
+        haraobi: card.querySelector<HTMLInputElement>('input[name$="-haraobi"]:checked')?.value,
+      }));
+      const fee = feeSummary(people);
+      if (!fee.total) {
+        lines.textContent = 'ご祈願内容を選ぶと、初穂料の目安が出ます。';
+        input.min = '0';
+        if (!edited) input.value = '';
+        return;
+      }
+      lines.innerHTML = fee.text.split('\n').map((l) => `<span>${l.replace(/[&<>]/g, '')}</span>`).join('');
+      input.min = String(fee.total);
+      if (!edited || Number(input.value) < fee.total) {
+        input.value = String(fee.total);
+        edited = false;
+      }
+    };
+    persons.addEventListener('change', update);
+    persons.addEventListener('click', (e) => {
+      // 「この方を削除」のあと
+      if ((e.target as HTMLElement).closest('[data-remove]')) setTimeout(update);
+    });
+    update();
+  };
+
   const showError = (message: string) => {
     error.textContent = message;
     error.hidden = false;
@@ -561,7 +633,16 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
   });
   dateSelect.addEventListener('change', renderTimes);
   toggleVisit();
-  if (advance) {
+  if (reception) {
+    // 当日受付：境内の QR コードの URL に入っている合言葉を、送信のときに一緒に送る
+    const key = new URLSearchParams(location.search).get('k') ?? '';
+    (form.elements.namedItem('k') as HTMLInputElement).value = key;
+    if (!key) {
+      showError('このページは、神社に掲示している今日の QR コードから開いてください。');
+      button.disabled = true;
+    }
+    initFee();
+  } else if (advance) {
     // 事前申し込み：締め切り前の日だけを選べるようにする（締め切りは送信の時にもう一度確かめる）
     const open = advanceDates();
     for (const key of open) dateSelect.add(new Option(dateLabel(key), key));
@@ -609,12 +690,18 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
     persons.querySelectorAll<HTMLElement>('[data-prayers]').forEach((el) => {
       if (!el.querySelector('input:checked')) missing.push(el);
     });
-    const visit = methodValue() === '来社';
+    const visit = methodValue() === '来社' && !reception; // 当日受付は日時を選ばない
     if (visit && !dateSelect.value) missing.push(dateSelect);
     if (visit && times && !form.querySelector('input[name=time]:checked')) missing.push(times);
 
     if (missing.length) {
       missing.forEach((el) => el.classList.add('is-invalid'));
+      const feeInput = form.querySelector<HTMLInputElement>('#fee-total');
+      if (feeInput && missing.includes(feeInput) && feeInput.value) {
+        feeInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        showError(`初穂料は ${Number(feeInput.min).toLocaleString('ja-JP')}円以上でご入力ください。`);
+        return;
+      }
       (missing[0] as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
       showError('入力されていない項目があります。赤い枠の項目をご確認ください。');
       return;
@@ -625,12 +712,14 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
     try {
       const res = await fetch(form.action, { method: 'POST', body: new FormData(form) });
       const data = (await res.json().catch(() => ({}))) as {
-        ok?: boolean; error?: string; refresh?: boolean; step?: string; type?: string; detail?: string; no?: string;
+        ok?: boolean; error?: string; refresh?: boolean; step?: string; type?: string; detail?: string; no?: string; total?: number;
       };
       if (res.ok && data.ok) {
-        window.location.href = advance
-          ? `/reservation/advance/thanks/?no=${encodeURIComponent(data.no ?? '')}`
-          : '/reservation/thanks/';
+        window.location.href = reception
+          ? `/reception/thanks/?${new URLSearchParams({ no: data.no ?? '', total: String(data.total ?? '') })}`
+          : advance
+            ? `/reservation/advance/thanks/?no=${encodeURIComponent(data.no ?? '')}`
+            : '/reservation/thanks/';
         return;
       }
       if (data.refresh) await loadSlots();
@@ -641,7 +730,7 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
       showError('通信エラーが発生しました。時間をおいて再度お試しください。');
     }
     button.disabled = false;
-    button.textContent = advance ? '事前申し込みを送信する' : '仮予約を送信する';
+    button.textContent = submitLabel;
     (window as unknown as { turnstile?: { reset: () => void } }).turnstile?.reset();
   });
 </script>

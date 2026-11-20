@@ -210,6 +210,28 @@ export function advanceDates(now = Date.now()): string[] {
  */
 
 /** 黒星を見る年（事前申し込みの対象日の年） */
+/**
+ * 黒星祈願祭の当日受付（参拝の方がご自分のスマホや神社のタブレットで入力し、その場で受付が確定する）。
+ * この日のこの時間（日本時間）だけ受け付ける。毎年、日付を書き換える。
+ */
+export const RECEPTION_WINDOWS = [
+  { date: '2027-01-09', from: '09:00', to: '19:00' },
+  { date: '2027-01-10', from: '09:00', to: '19:00' },
+  { date: '2027-01-11', from: '09:00', to: '17:00' },
+];
+
+/** 日本時間の今日の日付（2027-01-09）と時刻（09:30） */
+export function jstNow(now = Date.now()) {
+  const iso = new Date(now + 9 * 3600_000).toISOString();
+  return { date: iso.slice(0, 10), time: iso.slice(11, 16) };
+}
+
+/** 今、当日受付をしている日の受付時間（していなければ null） */
+export function receptionWindow(now = Date.now()) {
+  const { date, time } = jstNow(now);
+  return RECEPTION_WINDOWS.find((w) => w.date === date && time >= w.from && time < w.to) ?? null;
+}
+
 export const KUROBOSHI_YEAR = Number(ADVANCE_DATES[ADVANCE_DATES.length - 1].slice(0, 4));
 
 const STARS = ['一白水星', '二黒土星', '三碧木星', '四緑木星', '五黄土星', '六白金星', '七赤金星', '八白土星', '九紫火星'];

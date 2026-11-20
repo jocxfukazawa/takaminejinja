@@ -1,0 +1,254 @@
+---
+/**
+ * 当日受付の自動印刷（社務所のパソコンで開いたままにしておく。Cloudflare Access のログインが必要）
+ *
+ * 黒星祈願祭の当日、参拝の方が /reception/ から申し込むと、このページが10秒ごとに新しい受付を探し、
+ * 見つけたら申込書（祝詞用と控え）をすぐに印刷する。
+ * 印刷の確認画面を出さずに印刷するには、Chrome を --kiosk-printing を付けて起動しておく（README を参照）。
+ * 印刷したかどうかは、このパソコンのブラウザに覚えておく（受付番号ごと）。
+ */
+import { SHEET_CSS } from '../../lib/sheet-html';
+---
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>当日受付の自動印刷 - 高嶺神社</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@500;700&display=block" />
+  <style is:global>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f4f4f4; color: #111; font-family: "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif; }
+    .wrap { max-width: 900px; margin: 0 auto; padding: 20px; }
+    h1 { margin: 0 0 14px; font-size: 20px; }
+    .bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 14px 16px; background: #fff; border: 1px solid #ccc; }
+    .bar button { padding: 10px 22px; font: inherit; font-size: 16px; cursor: pointer; border: 1px solid #999; background: #fff; }
+    .bar .start { background: #c00; color: #fff; border-color: #c00; }
+    .state { font-size: 16px; font-weight: 700; }
+    .state.is-on { color: #0a7a2f; }
+    .state.is-off { color: #c00; }
+    .status { margin: 10px 0 0; font-size: 14px; color: #555; white-space: pre-line; }
+    .status.is-error { color: #c00; font-weight: 700; }
+    table { width: 100%; margin-top: 16px; border-collapse: collapse; background: #fff; font-size: 15px; }
+    th, td { padding: 8px 10px; border: 1px solid #ddd; text-align: left; }
+    th { background: #fafafa; font-size: 13px; }
+    td.done { color: #0a7a2f; }
+    td.wait { color: #c00; font-weight: 700; }
+    td button { padding: 4px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+    .empty { padding: 20px; text-align: center; color: #777; background: #fff; border: 1px solid #ddd; margin-top: 16px; }
+    /* 印刷する申込書は画面には出さない（印刷のときだけ出す） */
+    #js-area { position: absolute; left: -9999px; top: 0; }
+    @media print {
+      .wrap { display: none; }
+      #js-area { position: static; }
+    }
+  </style>
+  <Fragment set:html={`<style>${SHEET_CSS}</style>`} />
+</head>
+<body>
+  <div class="wrap">
+    <h1>当日受付の自動印刷（<span id="js-date"></span>）</h1>
+    <div class="bar">
+      <span class="state is-off" id="js-state">自動印刷：止まっています</span>
+      <button type="button" class="start" id="js-start">自動印刷を始める</button>
+      <button type="button" id="js-stop" hidden>止める</button>
+    </div>
+    <p class="status" id="js-status">「自動印刷を始める」を押すと、新しい受付があるたびに申込書（祝詞用と控え）を印刷します。このページは開いたままにしておいてください。</p>
+    <div id="js-list"></div>
+  </div>
+  <div id="js-area"></div>
+
+  <script>
+    import { adjustSheets, esc, sheetsHtml } from '../../lib/sheet-html';
+    import { jstNow } from '../../lib/reservation';
+
+    type Sheet = { no: string; group: string; name: string; [k: string]: unknown };
+    type Group = { no: string; sheets: Sheet[]; children: Sheet[]; names: string[]; persons: number };
+
+    const POLL_MS = 10_000;
+    // 試しのときは ?date=2027-01-09 のように日付を指定できる
+    const date = new URLSearchParams(location.search).get('date') || jstNow().date;
+    const storeKey = `reception-printed-${date}`;
+    const stateEl = document.getElementById('js-state')!;
+    const statusEl = document.getElementById('js-status')!;
+    const listEl = document.getElementById('js-list')!;
+    const area = document.getElementById('js-area')!;
+    const startBtn = document.getElementById('js-start') as HTMLButtonElement;
+    const stopBtn = document.getElementById('js-stop') as HTMLButtonElement;
+    document.getElementById('js-date')!.textContent = date.replace(/^(\d+)-0?(\d+)-0?(\d+)$/, '$1年$2月$3日');
+
+    /** 印刷した受付（受付番号 → 時刻）。このパソコンのブラウザに覚えておく */
+    const load = (): Record<string, string> => {
+      try {
+        return JSON.parse(localStorage.getItem(storeKey) ?? '{}');
+      } catch {
+        return {};
+      }
+    };
+    let printed = load();
+    const markPrinted = (no: string) => {
+      printed[no] = new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+      try {
+        localStorage.setItem(storeKey, JSON.stringify(printed));
+      } catch {
+        // 覚えられなくても印刷は続ける
+      }
+    };
+
+    let running = false;
+    let groups: Group[] = [];
+    /** 前回見たときの、受付ごとの人数（書き込みの途中で印刷しないよう、2回続けて同じなら印刷する） */
+    let lastCounts = new Map<string, number>();
+    let busy = false;
+    let timer: number | undefined;
+    let wakeLock: { release: () => Promise<void> } | null = null;
+
+    const toGroups = (sheets: Sheet[], children: Sheet[]) => {
+      const map = new Map<string, Group>();
+      const get = (s: Sheet) => {
+        const key = s.group || s.no;
+        if (!map.has(key)) map.set(key, { no: key, sheets: [], children: [], names: [], persons: 0 });
+        return map.get(key)!;
+      };
+      for (const s of sheets) get(s).sheets.push(s);
+      for (const s of children) get(s).children.push(s);
+      for (const g of map.values()) {
+        const people = new Map([...g.sheets, ...g.children].map((s) => [s.no, s.name]));
+        g.names = [...people.values()];
+        g.persons = people.size;
+      }
+      return [...map.values()].sort((a, b) => a.no.localeCompare(b.no));
+    };
+
+    const render = () => {
+      if (!groups.length) {
+        listEl.innerHTML = '<p class="empty">この日の当日受付はまだありません。</p>';
+        return;
+      }
+      listEl.innerHTML = `<table><thead><tr><th>受付番号</th><th>お名前</th><th>人数</th><th>印刷</th><th></th></tr></thead><tbody>${[...groups]
+        .reverse()
+        .map(
+          (g) => `<tr><td>${esc(g.no)}</td><td>${g.names.map(esc).join('、')}</td><td>${g.persons}名</td>
+            <td class="${printed[g.no] ? 'done' : 'wait'}">${printed[g.no] ? `印刷済み ${esc(printed[g.no])}` : 'まだ'}</td>
+            <td><button type="button" data-print="${esc(g.no)}">${printed[g.no] ? 'もう一度印刷' : '印刷'}</button></td></tr>`,
+        )
+        .join('')}</tbody></table>`;
+    };
+
+    const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+    /** 1組分の申込書を印刷する（Chrome を --kiosk-printing で起動していれば、確認画面を出さずに印刷される） */
+    const printGroup = async (g: Group) => {
+      area.innerHTML = sheetsHtml(g.sheets, g.children).html;
+      await document.fonts.ready;
+      adjustSheets(area);
+      window.print();
+      markPrinted(g.no);
+      area.innerHTML = '';
+      render();
+      await wait(1500);
+    };
+
+    const fetchGroups = async () => {
+      const res = await fetch(`/api/admin/sheets?reception=${date}`, { cache: 'no-store', credentials: 'same-origin' });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 403) throw new Error('ログインが切れました。ページを再読み込みして、ログインし直してください。');
+      if (!res.ok || !data.ok) throw new Error(data.error || `読み込めませんでした（${res.status}）`);
+      return toGroups(data.sheets, data.children ?? []);
+    };
+
+    const poll = async () => {
+      if (busy) return;
+      busy = true;
+      try {
+        groups = await fetchGroups();
+        render();
+        const counts = new Map(groups.map((g) => [g.no, g.persons]));
+        if (running) {
+          for (const g of groups) {
+            if (printed[g.no] || lastCounts.get(g.no) !== g.persons) continue;
+            statusEl.textContent = `${g.no}（${g.names[0]} 様ほか${g.persons - 1}名）を印刷しています…`;
+            await printGroup(g);
+          }
+        }
+        lastCounts = counts;
+        const time = new Date().toLocaleTimeString('ja-JP');
+        statusEl.className = 'status';
+        statusEl.textContent = running
+          ? `新しい受付を10秒ごとに確かめています（最後に確かめた時刻 ${time}）。このページは開いたままにしておいてください。`
+          : `受付の一覧を読み込みました（${time}）。自動印刷は止まっています。`;
+      } catch (e) {
+        statusEl.className = 'status is-error';
+        statusEl.textContent = `${(e as Error).message}\n（自動印刷は続けて、10秒後にもう一度確かめます）`;
+      } finally {
+        busy = false;
+      }
+    };
+
+    const setRunning = async (on: boolean) => {
+      running = on;
+      stateEl.textContent = on ? '自動印刷：動いています' : '自動印刷：止まっています';
+      stateEl.className = `state ${on ? 'is-on' : 'is-off'}`;
+      startBtn.hidden = on;
+      stopBtn.hidden = !on;
+      clearInterval(timer);
+      if (on) {
+        timer = window.setInterval(poll, POLL_MS);
+        // 画面が消えたりスリープしたりしないようにする（できるブラウザだけ）
+        try {
+          wakeLock = await (navigator as unknown as { wakeLock: { request: (t: string) => Promise<typeof wakeLock> } }).wakeLock.request('screen');
+        } catch {
+          wakeLock = null;
+        }
+      } else {
+        await wakeLock?.release().catch(() => {});
+        wakeLock = null;
+      }
+    };
+
+    startBtn.addEventListener('click', async () => {
+      statusEl.textContent = '読み込んでいます…';
+      try {
+        groups = await fetchGroups();
+      } catch (e) {
+        statusEl.className = 'status is-error';
+        statusEl.textContent = (e as Error).message;
+        return;
+      }
+      // 始める前からある、まだ印刷していない受付をどうするか聞く
+      const waiting = groups.filter((g) => !printed[g.no]);
+      if (waiting.length && !confirm(`まだ印刷していない受付が ${waiting.length}件あります。今から印刷しますか？\n（「キャンセル」を押すと、印刷せずに「印刷済み」にします）`)) {
+        waiting.forEach((g) => markPrinted(g.no));
+      }
+      lastCounts = new Map(groups.map((g) => [g.no, g.persons]));
+      render();
+      await setRunning(true);
+      await poll();
+    });
+    stopBtn.addEventListener('click', () => setRunning(false));
+
+    // 一覧の「印刷」「もう一度印刷」
+    listEl.addEventListener('click', async (e) => {
+      const no = (e.target as HTMLElement).closest<HTMLElement>('[data-print]')?.dataset.print;
+      const g = groups.find((x) => x.no === no);
+      if (!g || busy) return;
+      busy = true;
+      try {
+        await printGroup(g);
+      } finally {
+        busy = false;
+      }
+    });
+
+    // 画面に戻ってきたとき、スリープを防ぐ設定をし直す
+    document.addEventListener('visibilitychange', () => {
+      if (running && document.visibilityState === 'visible' && !wakeLock) setRunning(true);
+    });
+
+    poll();
+  </script>
+</body>
+</html>
