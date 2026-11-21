@@ -6,6 +6,7 @@
  *   - 世帯：同じ予約の中で、住所（＋建物名等）が同じ方は1つの世帯にまとめる。
  *       1) その住所の方に、すでに既存世帯IDが入っていれば、その世帯を使う
  *       2) 世帯・会社の表に、同じ住所の世帯が1つだけあれば、その世帯を使う（2つ以上あれば、作らずに知らせる）
+ *          種類が「会社・団体」の行は、住所が同じでも使わない（ご自宅を連絡先にしている団体など）
  *       3) どれもなければ、新しく作る（郵便番号・住所・建物名等・電話番号・ふりがなの姓）
  *   - 個人：既存個人IDが空の方だけ作る（姓・名・ふりがな・性別・生年月日・元号/年/月/日、代表の方は電話番号）。
  *       続柄は空のまま（後で手で入れる）。
@@ -128,8 +129,9 @@ const repRow = rows.find((r) => hasR('rep') && r.getCellValue(R.rep)) ?? rows[0]
 console.log(`予約グループ：${groupNo || '（なし）'}　${rows.length}名`);
 
 // ── 今ある個人・世帯 ──
-const pAll = await person.selectRecordsAsync({ fields: [P.sei, P.mei, ...(hasP('birth') ? [P.birth] : []), P.house] });
-const hAll = await house.selectRecordsAsync({ fields: [H.address, ...(hasH('building') ? [H.building] : [])] });
+// いちばん左の項目（ID）も読むため、項目をしぼらずに読む
+const pAll = await person.selectRecordsAsync();
+const hAll = await house.selectRecordsAsync();
 const houseByName = new Map(hAll.records.filter(idOf).map((h) => [idOf(h), h]));
 const personKey = (sei, mei, birth) => `${norm(sei)}${norm(mei)}|${birth ?? ''}`;
 const personIndex = new Map();
@@ -141,7 +143,10 @@ for (const p of pAll.records) {
 }
 const addrOf = (r, a, b) => norm(`${r.getCellValueAsString(a)}${b ? r.getCellValueAsString(b) : ''}`);
 const housesByAddr = new Map();
+/** 会社・団体の行は、住所が同じでもご家族の世帯にしない */
+const isCompany = (h) => hasH('kind') && /会社|団体/.test(h.getCellValueAsString(H.kind));
 for (const h of hAll.records) {
+  if (isCompany(h)) continue;
   const k = addrOf(h, H.address, hasH('building') ? H.building : null);
   if (k) housesByAddr.set(k, [...(housesByAddr.get(k) ?? []), h]);
 }
@@ -174,7 +179,8 @@ for (const [addr, members] of byAddr) {
     if (hid && houseByName.get(hid)) { houseRec = houseByName.get(hid); break; }
   }
   if (!houseRec) {
-    const linked = people.map((p) => p.found?.getCellValue(P.house)?.[0]).find(Boolean);
+    // 見つかった個人の世帯（会社・団体の行は使わない）
+    const linked = people.map((p) => p.found?.getCellValue(P.house)?.[0]).find((l) => l && !isCompany(hAll.getRecord(l.id)));
     if (linked) houseRec = hAll.getRecord(linked.id);
   }
   let houseNew = null;
@@ -269,8 +275,8 @@ if (DRY_RUN) {
     }
   }
   // 作った ID（いちばん左の項目）を読み直して、予約受付に書き戻す
-  const pNow = await person.selectRecordsAsync({ fields: [P.sei] });
-  const hNow = await house.selectRecordsAsync({ fields: [H.address] });
+  const pNow = await person.selectRecordsAsync();
+  const hNow = await house.selectRecordsAsync();
   const updates = [];
   for (const x of plan) {
     const f = {};
