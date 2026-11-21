@@ -159,7 +159,9 @@ const houseByName = new Map(hAll.records.filter(idOf).map((h) => [idOf(h), h]));
 const personKey = (sei, mei, birth) => `${norm(sei)}${norm(mei)}|${birth ?? ''}`;
 const personIndex = new Map();
 for (const p of pAll.records) {
-  const b = hasP('birth') ? birthKey(p.getCellValueAsString(P.birth)) : null;
+  // 日付の項目は、表示の形（2026/1/2、1/2/2026 など）によらず YYYY-MM-DD で読む
+  const raw = hasP('birth') ? p.getCellValue(P.birth) : null;
+  const b = raw ? birthKey(typeof raw === 'string' ? raw : p.getCellValueAsString(P.birth)) : null;
   if (!b) continue;
   const k = personKey(p.getCellValueAsString(P.sei), p.getCellValueAsString(P.mei), b);
   personIndex.set(k, [...(personIndex.get(k) ?? []), p]);
