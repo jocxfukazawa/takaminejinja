@@ -1,7 +1,7 @@
 ---
 import '../styles/global.css';
 import {
-  SITE_NAME, SITE_DESCRIPTION, GA_ID, NAV, LOGO, LOGO_WHITE, LOGO_LOADING, FAVICON, APPLE_ICON,
+  SITE_NAME, SITE_DESCRIPTION, GA_ID, NAV, LOGO, LOGO_WHITE, FAVICON, APPLE_ICON,
   FOOTER_LINK_IMG, ADDRESS, TEL, MAP_EMBED, SOCIAL,
 } from '../data/site';
 import SocialIcon from '../components/SocialIcon.astro';
@@ -48,15 +48,6 @@ const isCurrent = (href: string) => current === href || (href !== '/' && current
   <slot name="head" />
 </head>
 <body class:list={[front && 'is-front']}>
-  {front && (
-    <div class="p-loading" id="js-loading" aria-hidden="true">
-      <div class="p-loading__inner">
-        <img class="p-loading__logo" src={LOGO_LOADING} alt="" width="200" height="337" fetchpriority="high" />
-        <p class="p-loading__desc"><span>創建972年</span><span>1050年の歴史</span><span>家庭円満の宮</span></p>
-      </div>
-    </div>
-  )}
-  {front && <script is:inline>requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById('js-loading')?.classList.add('is-shown')));</script>}
   {front && (
     <div class="p-front-header">
       <div class="p-logoset">
