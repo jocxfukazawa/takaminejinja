@@ -237,12 +237,37 @@ const allowed = (r) => hasR('allow') && !!r.getCellValue(R.allow);
 /** 名前だけ同じ方がいて、別人のチェックもないので止める理由 */
 const blocks = [];
 
-const addrOf = (r, a, b) => norm(`${r.getCellValueAsString(a)}${b ? r.getCellValueAsString(b) : ''}`);
+/**
+ * 住所を比べるための形にそろえる。書き方の違いで別の住所とみなさないように：
+ *   都道府県・「〇〇郡」を外す（「赤穂郡上郡町…」と「上郡町…」を同じにする）、「大字」を外す、
+ *   漢数字の丁目・番地を数字に、「丁目・番地・番・号・の」をハイフンに、「ヶ・ケ」をそろえる、全角・半角・空白をそろえる
+ */
+const KANJI_NUM = { 〇: 0, 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
+const kanjiToNum = (k) => {
+  if (!k.includes('十')) return Number([...k].map((c) => KANJI_NUM[c]).join(''));
+  const [a, b] = k.split('十');
+  return (a ? KANJI_NUM[a] : 1) * 10 + (b ? KANJI_NUM[b] : 0);
+};
+const addrKey = (address, building = '') => {
+  let s = norm(`${address}${building}`);
+  s = s.replace(/^(東京都|北海道|京都府|大阪府|.{2,3}県)/, '');
+  s = s.replace(/^[^0-9-]{2,5}?郡/, ''); // 郡の名前は2字以上（「上郡町」の「上郡」は外さない）
+  s = s.replace(/大字/g, '').replace(/[ヶヵケ]/g, 'ケ');
+  s = s.replace(/([〇一二三四五六七八九十]+)(?=丁目|番地|番|号)/g, (k) => String(kanjiToNum(k)));
+  s = s.replace(/([0-9]+)丁目/g, '$1-').replace(/([0-9]+)番地?/g, '$1-').replace(/([0-9]+)号/g, '$1');
+  s = s.replace(/([0-9])の(?=[0-9])/g, '$1-').replace(/-+/g, '-').replace(/-$/, '').replace(/-(?=[^0-9])/g, '');
+  return s;
+};
+const addrOf = (r, a, b) => addrKey(r.getCellValueAsString(a), b ? r.getCellValueAsString(b) : '');
 const housesByAddr = new Map();
+/** 建物名を除いた住所での索引（片方に建物名がないときに使う） */
+const housesByStreet = new Map();
 for (const h of hAll.records) {
   if (isCompany(h)) continue;
   const k = addrOf(h, H.address, hasH('building') ? H.building : null);
   if (k) housesByAddr.set(k, [...(housesByAddr.get(k) ?? []), h]);
+  const k2 = addrKey(h.getCellValueAsString(H.address));
+  if (k2) housesByStreet.set(k2, [...(housesByStreet.get(k2) ?? []), h]);
 }
 
 /** 元号・年・月・日から読んだ生年月日を、予約受付の「生年月日」に書き戻す行 */
@@ -270,10 +295,10 @@ for (const [addr, members] of byAddr) {
     let found = birth ? personIndex.get(personKey(sei, mei, birth)) ?? [] : [];
     // 生年月日が分からない方は、名前と住所で探す（同じ住所の世帯にいる、同じ名前の方）
     if (!birth && !found.length) {
-      const rAddr = norm(str(r, R.address));
+      const rAddr = addrKey(str(r, R.address));
       const byAddr2 = rAddr ? (nameIndex.get(`${norm(sei)}${norm(mei)}`) ?? []).filter((p) => {
         const h = ownHouseOf(p);
-        return h && norm(h.getCellValueAsString(H.address)) === rAddr;
+        return h && addrKey(h.getCellValueAsString(H.address)) === rAddr;
       }) : [];
       if (byAddr2.length === 1) {
         found = byAddr2;
@@ -313,7 +338,14 @@ for (const [addr, members] of byAddr) {
   let houseNew = null;
   let noHouse = false;
   if (!houseRec) {
-    const same = addr ? housesByAddr.get(addr) ?? [] : [];
+    let same = addr ? housesByAddr.get(addr) ?? [] : [];
+    // 見つからず、どちらかに建物名がないときは、建物名を除いた住所で探す
+    if (!same.length && addr) {
+      const rowBuilding = hasR('building') ? str(members[0], R.building) : '';
+      same = (housesByStreet.get(addrKey(str(members[0], R.address))) ?? [])
+        .filter((h) => !rowBuilding || !(hasH('building') && h.getCellValueAsString(H.building).trim()));
+      if (same.length === 1) log(`建物名を除いた住所で、同じ世帯を見つけました：${idOf(same[0])}`);
+    }
     if (same.length === 1 && !idOf(same[0])) {
       problems.push(`住所「${str(members[0], R.address)}」の世帯が見つかりましたが、その世帯の ID が空です（レコードID ${same[0].id}）。世帯・会社の表でその行を確かめてから、もう一度押してください。`);
       continue;
