@@ -21,6 +21,8 @@
  *       使う世帯が今ある世帯なら、その世帯に同じ名前の方がいれば、その方は作らない。
  *       電話番号は、子ではなく父（いなければ母）の個人に入れる。
  *   - そのほかの新しい世帯の名前は、代表の方の名前にする。
+ *   - 生年月日：「生年月日」が空で、元号・年・月・日が入っていれば、そこから読み、「生年月日」にも書き戻す（紙の申込書の分）。
+ *   - 生年月日が分からない方は、名前と住所で探す（同じ名前の方が、同じ住所の世帯に1人だけいれば、その方を使う）。
  *   - 名前だけ同じ方（生年月日が違う・空）が個人の表にいれば、何も作らずに止めて知らせる。
  *       同じ方なら、既存個人IDを手で入れる（または IDチェック）。
  *       別人だと確かめたときは、予約受付の行の「同姓同名の別人として登録」にチェックを入れて、もう一度押す
@@ -45,6 +47,8 @@ const R = {
   personId: '既存個人ID', houseId: '既存世帯ID', parents: '父母の名前',
   // 名前だけ同じ方が個人の表にいても、別人として作ってよいときにチェックを入れる項目（チェックボックス）
   allow: '同姓同名の別人として登録',
+  // 紙の申込書から入れるときの生年月日（和暦）。「生年月日」が空なら、ここから読む
+  era: '元号', y: '年', m: '月', d: '日',
 };
 // 個人の項目
 const P = {
@@ -103,6 +107,18 @@ const birthKey = (s) => {
     return `${y}-${m[3].padStart(2, '0')}-${m[4].padStart(2, '0')}`;
   }
   return null;
+};
+/** 予約受付の行の生年月日：「生年月日」、なければ元号・年・月・日（和暦） */
+const rowBirth = (r) => {
+  const b = birthKey(str(r, R.birth));
+  if (b) return { key: b, fromParts: false };
+  if (!hasR('era') || !hasR('y')) return { key: null };
+  const era = ERAS.find((e) => e[0] === str(r, R.era));
+  const y = Number(String(str(r, R.y)).normalize('NFKC').replace('元', '1'));
+  const m = Number(str(r, hasR('m') ? R.m : null));
+  const d = Number(str(r, hasR('d') ? R.d : null));
+  if (!era || !y || !m || !d) return { key: null };
+  return { key: `${era[1] + y - 1}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`, fromParts: true };
 };
 /** YYYY-MM-DD → [元号, 年, 月, 日] */
 const toEra = (key) => {
@@ -204,6 +220,11 @@ for (const h of hAll.records) {
   if (k) housesByAddr.set(k, [...(housesByAddr.get(k) ?? []), h]);
 }
 
+/** 元号・年・月・日から読んだ生年月日を、予約受付の「生年月日」に書き戻す行 */
+const birthBack = new Map();
+const birthField = reserve.fields.find((f) => f.name === R.birth);
+const birthValue = (key) => (birthField?.type === 'date' ? key : key.replace(/-/g, '/'));
+
 // ── 住所ごとに分けて、世帯を決める ──
 const plan = []; // { row, houseRec | houseNew, personRec | personNew }
 const problems = [];
@@ -219,8 +240,24 @@ for (const [addr, members] of byAddr) {
     const pid = str(r, R.personId);
     if (pid) return { r, existing: true };
     const [sei, mei] = splitName(str(r, R.name));
-    const birth = birthKey(str(r, R.birth));
-    const found = birth ? personIndex.get(personKey(sei, mei, birth)) ?? [] : [];
+    const rb = rowBirth(r);
+    const birth = rb.key;
+    let found = birth ? personIndex.get(personKey(sei, mei, birth)) ?? [] : [];
+    // 生年月日が分からない方は、名前と住所で探す（同じ住所の世帯にいる、同じ名前の方）
+    if (!birth && !found.length) {
+      const rAddr = norm(str(r, R.address));
+      const byAddr2 = rAddr ? (nameIndex.get(`${norm(sei)}${norm(mei)}`) ?? []).filter((p) => {
+        const h = ownHouseOf(p);
+        return h && norm(h.getCellValueAsString(H.address)) === rAddr;
+      }) : [];
+      if (byAddr2.length === 1) {
+        found = byAddr2;
+        console.log(`${sei}　${mei}：生年月日がないので、名前と住所で見つけました（${idOf(byAddr2[0])}）`);
+      } else if (byAddr2.length > 1) {
+        problems.push(`${sei}　${mei}：同じ名前の方が、同じ住所の世帯に${byAddr2.length}人います。既存個人IDを手で入れてください。`);
+        found = byAddr2;
+      }
+    }
     if (found.length > 1) problems.push(`${sei}　${mei}：同じ名前・生年月日の方が個人の表に${found.length}人います。既存個人IDを手で入れてください。`);
     if (!found.length) {
       const same = nameIndex.get(`${norm(sei)}${norm(mei)}`) ?? [];
@@ -228,8 +265,10 @@ for (const [addr, members] of byAddr) {
         blocks.push(`${sei}　${mei}：名前が同じ方が個人の表にいます → ${same.map(describe).join('、')}`);
       }
     }
-    return { r, sei, mei, birth, found: found.length === 1 ? found[0] : null, skip: found.length > 1 };
+    return { r, sei, mei, birth, birthFromParts: rb.fromParts, found: found.length === 1 ? found[0] : null, skip: found.length > 1 };
   });
+
+  for (const p of people) if (p.birthFromParts && p.birth && !str(p.r, R.birth)) birthBack.set(p.r.id, birthValue(p.birth));
 
   // 父母（七五三詣・初宮詣など）
   const parents = parseParents(members.map((r) => str(r, hasR('parents') ? R.parents : null)).find(Boolean));
@@ -391,6 +430,7 @@ if (blocks.length) {
     const pName = x.personId ? idOf(pNow.getRecord(x.personId)) : '';
     const hName = x.houseId ? idOf(hNow.getRecord(x.houseId)) : '';
     if (pName && !str(x.row, R.personId)) f[R.personId] = pName;
+    if (birthBack.has(x.row.id)) f[R.birth] = birthBack.get(x.row.id);
     if (hName && !str(x.row, R.houseId)) f[R.houseId] = hName;
     if (x.personId && !pName) problems.push(`${str(x.row, R.name)}：個人の ID が読めませんでした（レコードID ${x.personId}）。既存個人IDを手で入れてください。`);
     if (x.houseId && !hName) problems.push(`${str(x.row, R.name)}：世帯の ID が読めませんでした（レコードID ${x.houseId}）。既存世帯IDを手で入れてください。`);
