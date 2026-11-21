@@ -18,6 +18,10 @@
  *       使う世帯が今ある世帯なら、その世帯に同じ名前の方がいれば、その方は作らない。
  *       電話番号は、子ではなく父（いなければ母）の個人に入れる。
  *   - そのほかの新しい世帯の名前は、代表の方の名前にする。
+ *   - 名前だけ同じ方（生年月日が違う・空）が個人の表にいれば、何も作らずに止めて知らせる。
+ *       同じ方なら、既存個人IDを手で入れる（または IDチェック）。
+ *       別人だと確かめたときは、予約受付の行の「同姓同名の別人として登録」にチェックを入れて、もう一度押す
+ *       （父・母は、代表の方の行のチェックで判断する）。
  *
  * 入力（Input variables）：recordId ＝ トリガーの「Airtable record ID」
  * DRY_RUN = true のあいだは、何も作らずに、作る予定だけを出す。
@@ -36,6 +40,8 @@ const R = {
   zip: '郵便番号', address: '住所', building: '建物名等', tel: '電話番号',
   group: '予約グループ', rep: '代表者', status: '予約ステータス',
   personId: '既存個人ID', houseId: '既存世帯ID', parents: '父母の名前',
+  // 名前だけ同じ方が個人の表にいても、別人として作ってよいときにチェックを入れる項目（チェックボックス）
+  allow: '同姓同名の別人として登録',
 };
 // 個人の項目
 const P = {
@@ -158,7 +164,11 @@ const hAll = await house.selectRecordsAsync();
 const houseByName = new Map(hAll.records.filter(idOf).map((h) => [idOf(h), h]));
 const personKey = (sei, mei, birth) => `${norm(sei)}${norm(mei)}|${birth ?? ''}`;
 const personIndex = new Map();
+/** 名前だけの索引（名前だけ同じ方を見つけて止めるため） */
+const nameIndex = new Map();
 for (const p of pAll.records) {
+  const nk = `${norm(p.getCellValueAsString(P.sei))}${norm(p.getCellValueAsString(P.mei))}`;
+  if (nk) nameIndex.set(nk, [...(nameIndex.get(nk) ?? []), p]);
   // 日付の項目は、表示の形（2026/1/2、1/2/2026 など）によらず YYYY-MM-DD で読む
   const raw = hasP('birth') ? p.getCellValue(P.birth) : null;
   const b = raw ? birthKey(typeof raw === 'string' ? raw : p.getCellValueAsString(P.birth)) : null;
@@ -166,6 +176,17 @@ for (const p of pAll.records) {
   const k = personKey(p.getCellValueAsString(P.sei), p.getCellValueAsString(P.mei), b);
   personIndex.set(k, [...(personIndex.get(k) ?? []), p]);
 }
+/** 名前だけ同じ方の説明（ID・生年月日・世帯） */
+const describe = (p) => {
+  const raw = hasP('birth') ? p.getCellValue(P.birth) : null;
+  const b = raw ? birthKey(typeof raw === 'string' ? raw : p.getCellValueAsString(P.birth)) : null;
+  const h = (p.getCellValue(P.house) ?? []).map((l) => idOf(hAll.getRecord(l.id)) || l.name).filter(Boolean).join('・');
+  return `${idOf(p) || p.id}（生年月日 ${b ?? '空'}${h ? `、世帯 ${h}` : ''}）`;
+};
+const allowed = (r) => hasR('allow') && !!r.getCellValue(R.allow);
+/** 名前だけ同じ方がいて、別人のチェックもないので止める理由 */
+const blocks = [];
+
 const addrOf = (r, a, b) => norm(`${r.getCellValueAsString(a)}${b ? r.getCellValueAsString(b) : ''}`);
 const housesByAddr = new Map();
 /** 会社・団体の行は、住所が同じでもご家族の世帯にしない */
@@ -194,6 +215,12 @@ for (const [addr, members] of byAddr) {
     const birth = birthKey(str(r, R.birth));
     const found = birth ? personIndex.get(personKey(sei, mei, birth)) ?? [] : [];
     if (found.length > 1) problems.push(`${sei}　${mei}：同じ名前・生年月日の方が個人の表に${found.length}人います。既存個人IDを手で入れてください。`);
+    if (!found.length) {
+      const same = nameIndex.get(`${norm(sei)}${norm(mei)}`) ?? [];
+      if (same.length && !allowed(r)) {
+        blocks.push(`${sei}　${mei}：名前が同じ方が個人の表にいます → ${same.map(describe).join('、')}`);
+      }
+    }
     return { r, sei, mei, birth, found: found.length === 1 ? found[0] : null, skip: found.length > 1 };
   });
 
@@ -284,6 +311,10 @@ for (const [addr, members] of byAddr) {
         && norm(x.getCellValueAsString(P.sei) + x.getCellValueAsString(P.mei)) === norm(pa.sei + pa.mei));
       if (inHouse) { console.log(`${label}：世帯にすでにいらっしゃるので、作りません（${idOf(inHouse)}）`); continue; }
     }
+    const same = nameIndex.get(`${norm(pa.sei)}${norm(pa.mei)}`) ?? [];
+    if (same.length && !members.some(allowed)) {
+      blocks.push(`${label}：名前が同じ方が個人の表にいます → ${same.map(describe).join('、')}`);
+    }
     const fields = { [P.sei]: pa.sei, [P.mei]: pa.mei,
       ...(hasP('seiKana') && pa.seiKana ? { [P.seiKana]: pa.seiKana } : {}),
       ...(hasP('meiKana') && pa.meiKana ? { [P.meiKana]: pa.meiKana } : {}) };
@@ -301,7 +332,17 @@ for (const x of plan) {
   const p = x.keepPerson ? '個人はそのまま' : x.personRec ? `既存の個人 ${idOf(x.personRec)} を使う` : '新しい個人を作る';
   console.log(`${who}：${p}／${h}`);
 }
-if (DRY_RUN) {
+if (blocks.length) {
+  // 名前だけ同じ方がいるときは、取り違えを防ぐため、だれの分も作らない
+  for (const m of blocks) console.log(`⛔ ${m}`);
+  for (const m of problems) console.log(`⚠ ${m}`);
+  console.log('名前が同じ方が個人の表にいるので、何も作りませんでした。'
+    + '同じ方なら、その方の ID を既存個人ID に入れてください（または IDチェック）。'
+    + '父・母が同じ方なら、その方の世帯の ID を、お子さまの行の既存世帯ID に入れてください（その世帯の父・母は作りません）。'
+    + `別人だと確かめたときは、予約受付の行の「${R.allow}」にチェックを入れて、もう一度押してください。`
+    + (hasR('allow') ? '' : `（予約受付の表に「${R.allow}」のチェックボックスの項目を作ってください）`));
+  output.set('result', 'stopped');
+} else if (DRY_RUN) {
   for (const m of problems) console.log(`⚠ ${m}`);
   console.log('試し運転なので、まだ何も作っていません。');
   output.set('result', 'dry-run');
