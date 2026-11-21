@@ -97,9 +97,9 @@ const ink = INTRO_MODE === 'white' ? '-ink' : '';
   if (intro && mode === 'clear') {
     // 透明：動画の上にロゴを描き、終わったらロゴと薄い影をふわっと消す
     requestAnimationFrame(() => intro.classList.add('is-shown'));
-    setTimeout(() => intro.classList.add('is-leaving'), 5000);
-    setTimeout(() => { intro.classList.add('is-gone'); document.body.classList.remove('is-intro'); }, 5400);
-    setTimeout(() => intro.remove(), 6400);
+    setTimeout(() => intro.classList.add('is-leaving'), 4300);
+    setTimeout(() => { intro.classList.add('is-gone'); document.body.classList.remove('is-intro'); }, 4700);
+    setTimeout(() => intro.remove(), 5700);
   } else if (intro && canvas) {
     const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
     const SCALE = 3; // 3px ごとの粒
