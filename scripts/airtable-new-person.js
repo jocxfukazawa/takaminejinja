@@ -69,6 +69,31 @@ const reserve = base.getTable(T_RESERVE);
 const person = base.getTable(T_PERSON);
 const house = base.getTable(T_HOUSE);
 
+// ── 結果を、押した行に書き込む（インターフェースのその行の画面で読めるように） ──
+const RESULT_FIELD = '確認・登録の結果'; // 長い文字（Long text）
+const STATE_FIELD = '確認・登録の状態'; // 単一選択（完了・要確認・エラー・試し運転）。なくてもよい
+const logs = [];
+const log = (m) => { logs.push(String(m)); console.log(m); };
+let state = '';
+const GUIDE = {
+  完了: '個人・世帯の確認が終わりました。中身がよければ、予約ステータスを「登録完了」にしてください。',
+  要確認: '止まったか、手で確かめることがあります。下の ⛔・⚠ の行を読んで直してから、もう一度「確認・登録」を押してください。',
+  試し運転: '試し運転なので、まだ何も作っていません。',
+  エラー: 'スクリプトが途中で止まりました。下の内容を読んでください。',
+};
+const writeResult = async () => {
+  const names = new Set(reserve.fields.map((f) => f.name));
+  const when = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 16).replace('T', ' ').replace(/-/g, '/');
+  const fields = {};
+  if (names.has(RESULT_FIELD)) fields[RESULT_FIELD] = [`【${state}】${when}`, GUIDE[state] ?? '', '', ...logs].join('\n');
+  const sf = reserve.fields.find((f) => f.name === STATE_FIELD);
+  if (sf && (sf.options?.choices ?? []).some((c) => c.name === state)) fields[STATE_FIELD] = { name: state };
+  if (Object.keys(fields).length) await reserve.updateRecordAsync(recordId, fields);
+  else console.log(`（結果を書き込む「${RESULT_FIELD}」の項目が、予約受付の表にありません）`);
+};
+
+try {
+
 /** 表にない項目を、まとめて知らせる */
 const check = (table, map, required) => {
   const names = new Set(table.fields.map((f) => f.name));
@@ -174,7 +199,7 @@ const groupNo = str(clicked, hasR('group') ? R.group : null);
 const rows = (groupNo ? all.records.filter((r) => str(r, R.group) === groupNo) : [clicked])
   .filter((r) => !SKIP_STATUS.includes(str(r, hasR('status') ? R.status : null)));
 const repRow = rows.find((r) => hasR('rep') && r.getCellValue(R.rep)) ?? rows[0];
-console.log(`予約グループ：${groupNo || '（なし）'}　${rows.length}名`);
+log(`予約グループ：${groupNo || '（なし）'}　${rows.length}名`);
 
 // ── 今ある個人・世帯 ──
 // いちばん左の項目（ID）も読むため、項目をしぼらずに読む
@@ -252,7 +277,7 @@ for (const [addr, members] of byAddr) {
       }) : [];
       if (byAddr2.length === 1) {
         found = byAddr2;
-        console.log(`${sei}　${mei}：生年月日がないので、名前と住所で見つけました（${idOf(byAddr2[0])}）`);
+        log(`${sei}　${mei}：生年月日がないので、名前と住所で見つけました（${idOf(byAddr2[0])}）`);
       } else if (byAddr2.length > 1) {
         problems.push(`${sei}　${mei}：同じ名前の方が、同じ住所の世帯に${byAddr2.length}人います。既存個人IDを手で入れてください。`);
         found = byAddr2;
@@ -294,7 +319,7 @@ for (const [addr, members] of byAddr) {
       continue;
     } else if (same.length === 1) {
       houseRec = same[0];
-      console.log(`同じ住所の世帯が見つかりました：${idOf(houseRec)}`);
+      log(`同じ住所の世帯が見つかりました：${idOf(houseRec)}`);
     } else if (same.length > 1) {
       problems.push(`住所「${str(members[0], R.address)}」の世帯が${same.length}つあります（${same.map((h) => idOf(h) || `ID が空：${h.id}`).join('、')}）。既存世帯IDを手で入れてから、もう一度押してください。`);
       continue;
@@ -344,7 +369,7 @@ for (const [addr, members] of byAddr) {
         if (hasP('d')) fields[P.d] = era[3];
       }
     } else {
-      console.log(`${p.sei}　${p.mei}：生年月日が分からないので、空のまま作ります。`);
+      log(`${p.sei}　${p.mei}：生年月日が分からないので、空のまま作ります。`);
     }
     if (!headParent && p.r === repRow && hasP('tel') && hasR('tel') && str(p.r, R.tel)) fields[P.tel] = str(p.r, R.tel);
     plan.push({ row: p.r, houseRec, houseNew, personNew: fields });
@@ -358,7 +383,7 @@ for (const [addr, members] of byAddr) {
     if (houseRec) {
       const inHouse = pAll.records.find((x) => (x.getCellValue(P.house) ?? []).some((l) => l.id === houseRec.id)
         && norm(x.getCellValueAsString(P.sei) + x.getCellValueAsString(P.mei)) === norm(pa.sei + pa.mei));
-      if (inHouse) { console.log(`${label}：世帯にすでにいらっしゃるので、作りません（${idOf(inHouse)}）`); continue; }
+      if (inHouse) { log(`${label}：世帯にすでにいらっしゃるので、作りません（${idOf(inHouse)}）`); continue; }
     }
     const same = nameIndex.get(`${norm(pa.sei)}${norm(pa.mei)}`) ?? [];
     if (same.length && !members.some(allowed)) {
@@ -374,27 +399,30 @@ for (const [addr, members] of byAddr) {
   }
 }
 
-// ── 予定を出す ──
-for (const x of plan) {
+// ── 予定を出す（止まるときは出さない。作らないので、まぎらわしいため） ──
+for (const x of blocks.length ? [] : plan) {
   const who = x.row ? str(x.row, R.name) : x.label;
   const own = x.personRec ? ownHouseOf(x.personRec) : null;
   const h = own ? `その方の世帯 ${idOf(own)}` : x.houseRec ? `既存の世帯 ${idOf(x.houseRec) || `（ID が空：${x.houseRec.id}）`}` : `新しい世帯を作る（${x.houseNew?.[H.name] ?? '名前なし'}）`;
   const p = x.keepPerson ? '個人はそのまま' : x.personRec ? `既存の個人 ${idOf(x.personRec)} を使う` : '新しい個人を作る';
-  console.log(`${who}：${p}／${h}`);
+  log(`${who}：${p}／${h}`);
 }
 if (blocks.length) {
   // 名前だけ同じ方がいるときは、取り違えを防ぐため、だれの分も作らない
-  for (const m of blocks) console.log(`⛔ ${m}`);
-  for (const m of problems) console.log(`⚠ ${m}`);
-  console.log('名前が同じ方が個人の表にいるので、何も作りませんでした。'
-    + '同じ方なら、その方の ID を既存個人ID に入れて、もう一度押してください。'
-    + '父・母が同じ方なら、その方の世帯の ID を、お子さまの行の既存世帯ID に入れてください（その世帯の父・母は作りません）。'
-    + `別人だと確かめたときは、予約受付の行の「${R.allow}」にチェックを入れて、もう一度押してください。`
+  for (const m of blocks) log(`⛔ ${m}`);
+  for (const m of problems) log(`⚠ ${m}`);
+  log('');
+  log('名前が同じ方が個人の表にいるので、何も作りませんでした。次のどれかをして、もう一度押してください。');
+  log('・同じ方なら：その方の ID を「既存個人ID」に入れる');
+  log('・父・母が同じ方なら：その方の世帯の ID を、お子さまの行の「既存世帯ID」に入れる（その世帯の父・母は作りません）');
+  log(`・別人だと確かめたら：この行の「${R.allow}」にチェックを入れる`
     + (hasR('allow') ? '' : `（予約受付の表に「${R.allow}」のチェックボックスの項目を作ってください）`));
+  state = '要確認';
   output.set('result', 'stopped');
 } else if (DRY_RUN) {
-  for (const m of problems) console.log(`⚠ ${m}`);
-  console.log('試し運転なので、まだ何も作っていません。');
+  for (const m of problems) log(`⚠ ${m}`);
+  log('試し運転なので、まだ何も作っていません。');
+  state = '試し運転';
   output.set('result', 'dry-run');
 } else {
   // 世帯を作る（同じ予定は1回だけ）
@@ -437,7 +465,24 @@ if (blocks.length) {
     if (Object.keys(f).length) updates.push({ id: x.row.id, fields: f });
   }
   for (let i = 0; i < updates.length; i += 50) await reserve.updateRecordsAsync(updates.slice(i, i + 50));
-  console.log(`世帯 ${madeHouse.size}件、個人 ${plan.filter((x) => x.personNew).length}件を作り、${updates.length}行に ID を書き戻しました。`);
-  for (const m of problems) console.log(`⚠ ${m}`);
+  log(`世帯 ${madeHouse.size}件、個人 ${plan.filter((x) => x.personNew).length}件を作り、${updates.length}行に ID を書き戻しました。`);
+  for (const m of problems) log(`⚠ ${m}`);
+  state = problems.length ? '要確認' : '完了';
   output.set('result', problems.length ? 'needs-check' : 'done');
 }
+  await writeResult();
+} catch (e) {
+  // 思わぬところで止まったときも、何が起きたかと、どうすればよいかを書き込む
+  state = 'エラー';
+  const msg = String(e?.message ?? e);
+  log(`内容：${msg}`);
+  if (msg.includes('次の項目がありません')) log('→ 表の項目の名前が変わっていないか確かめてください。名前を戻すか、スクリプトの設定の項目名を直してください。');
+  else if (msg.includes('押した行が見つかりません')) log('→ 行が消されたか、別の表のボタンから押された可能性があります。予約受付の行の画面から、もう一度押してください。');
+  else if (/permission|権限/i.test(msg)) log('→ 書き込む権限がありません。Airtable の権限の設定を確かめてください。');
+  else if (/cannot accept|Could not|invalid/i.test(msg)) log('→ 書き込もうとした値が、項目の種類と合いませんでした。項目の種類（日付・数字・選択肢など）が変わっていないか確かめてください。');
+  else log('→ もう一度押してください。同じエラーが続くときは、この欄の文をそのまま管理者に伝えてください。');
+  log('個人・世帯の表は、止まる前に作られた分だけ変わっている可能性があります。作りかけの行がないか確かめてください。');
+  try { await writeResult(); } catch (e2) { console.log(`結果を書き込めませんでした：${e2?.message ?? e2}`); }
+  throw e;
+}
+
