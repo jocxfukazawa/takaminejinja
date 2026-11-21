@@ -933,12 +933,3 @@ body.is-intro .p-hero__arrow { opacity: 0; }
 .p-intro--clear { background: rgba(0, 20, 43, .32); transition: opacity .9s ease; }
 .p-intro--clear .p-intro__canvas { display: none; }
 .p-intro--clear.is-gone { opacity: 0; }
-/* 透明の演出：お印を描いたあと、上から順に（紋 → 幸せを運ぶ宮 → 高 → 嶺 → 神 → 社）出す */
-.p-intro--clear.is-shown .p-intro__emblem path { animation: p-intro-trace 1.4s cubic-bezier(.5, 0, .3, 1) .2s forwards, p-intro-unstroke .8s ease 1.3s forwards; }
-.p-intro--clear.is-shown .p-intro__emblem-fill { animation: p-intro-fill .8s ease 1.3s forwards; }
-.p-intro--clear.is-shown .p-intro__crest { animation-delay: 1.8s; }
-.p-intro--clear.is-shown .p-intro__char--yuki { animation-duration: .9s; animation-delay: 2.1s; }
-.p-intro--clear.is-shown .p-intro__char--koh { animation-delay: 2.9s; }
-.p-intro--clear.is-shown .p-intro__char--rei { animation-delay: 3.2s; }
-.p-intro--clear.is-shown .p-intro__char--shin { animation-delay: 3.5s; }
-.p-intro--clear.is-shown .p-intro__char--sha { animation-delay: 3.8s; }
