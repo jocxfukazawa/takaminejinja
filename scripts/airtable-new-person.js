@@ -2,7 +2,10 @@
  * 予約受付の「新規登録」ボタン：新しい方の「個人」と「世帯・会社」を作り、予約受付の行に ID を書き戻す
  * （Airtable のオートメーション「When a button is clicked」→「Run script」に貼り付けて使う）
  *
+ * 「IDチェック」も兼ねる。どの予約でもこのボタンを押せばよい（すでにいる方は作らず、ID を書き戻すだけ）。
  * 押した行と、同じ予約グループのご家族をまとめて扱う（キャンセルの行は除く）。
+ *   - すでにいる方（名前＋生年月日が同じ）は、その方と、その方自身の世帯の ID を書き戻す。
+ *     会社・団体にだけつながっている方は、団体の代表としての登録なので、ご本人としては使わない。
  *   - 世帯：同じ予約の中で、住所（＋建物名等）が同じ方は1つの世帯にまとめる。
  *       1) その住所の方に、すでに既存世帯IDが入っていれば、その世帯を使う
  *       2) 世帯・会社の表に、同じ住所の世帯が1つだけあれば、その世帯を使う（2つ以上あれば、作らずに知らせる）
@@ -162,6 +165,12 @@ console.log(`予約グループ：${groupNo || '（なし）'}　${rows.length}�
 const pAll = await person.selectRecordsAsync();
 const hAll = await house.selectRecordsAsync();
 const houseByName = new Map(hAll.records.filter(idOf).map((h) => [idOf(h), h]));
+/** 会社・団体の行は、住所が同じでもご家族の世帯にしない */
+const isCompany = (h) => !!h && hasH('kind') && /会社|団体/.test(h.getCellValueAsString(H.kind));
+/** その方自身の世帯（会社・団体でない、つながっている世帯） */
+const ownHouseOf = (p) => (p.getCellValue(P.house) ?? []).map((l) => hAll.getRecord(l.id)).find((h) => h && !isCompany(h)) ?? null;
+/** 会社・団体にだけつながっている方（団体の代表としての登録。ご本人としては使わない） */
+const companyOnly = (p) => { const hs = (p.getCellValue(P.house) ?? []).map((l) => hAll.getRecord(l.id)).filter(Boolean); return hs.length > 0 && hs.every(isCompany); };
 const personKey = (sei, mei, birth) => `${norm(sei)}${norm(mei)}|${birth ?? ''}`;
 const personIndex = new Map();
 /** 名前だけの索引（名前だけ同じ方を見つけて止めるため） */
@@ -172,7 +181,7 @@ for (const p of pAll.records) {
   // 日付の項目は、表示の形（2026/1/2、1/2/2026 など）によらず YYYY-MM-DD で読む
   const raw = hasP('birth') ? p.getCellValue(P.birth) : null;
   const b = raw ? birthKey(typeof raw === 'string' ? raw : p.getCellValueAsString(P.birth)) : null;
-  if (!b) continue;
+  if (!b || companyOnly(p)) continue;
   const k = personKey(p.getCellValueAsString(P.sei), p.getCellValueAsString(P.mei), b);
   personIndex.set(k, [...(personIndex.get(k) ?? []), p]);
 }
@@ -189,8 +198,6 @@ const blocks = [];
 
 const addrOf = (r, a, b) => norm(`${r.getCellValueAsString(a)}${b ? r.getCellValueAsString(b) : ''}`);
 const housesByAddr = new Map();
-/** 会社・団体の行は、住所が同じでもご家族の世帯にしない */
-const isCompany = (h) => hasH('kind') && /会社|団体/.test(h.getCellValueAsString(H.kind));
 for (const h of hAll.records) {
   if (isCompany(h)) continue;
   const k = addrOf(h, H.address, hasH('building') ? H.building : null);
@@ -328,7 +335,8 @@ for (const [addr, members] of byAddr) {
 // ── 予定を出す ──
 for (const x of plan) {
   const who = x.row ? str(x.row, R.name) : x.label;
-  const h = x.houseRec ? `既存の世帯 ${idOf(x.houseRec) || `（ID が空：${x.houseRec.id}）`}` : `新しい世帯を作る（${x.houseNew?.[H.name] ?? '名前なし'}）`;
+  const own = x.personRec ? ownHouseOf(x.personRec) : null;
+  const h = own ? `その方の世帯 ${idOf(own)}` : x.houseRec ? `既存の世帯 ${idOf(x.houseRec) || `（ID が空：${x.houseRec.id}）`}` : `新しい世帯を作る（${x.houseNew?.[H.name] ?? '名前なし'}）`;
   const p = x.keepPerson ? '個人はそのまま' : x.personRec ? `既存の個人 ${idOf(x.personRec)} を使う` : '新しい個人を作る';
   console.log(`${who}：${p}／${h}`);
 }
@@ -337,7 +345,7 @@ if (blocks.length) {
   for (const m of blocks) console.log(`⛔ ${m}`);
   for (const m of problems) console.log(`⚠ ${m}`);
   console.log('名前が同じ方が個人の表にいるので、何も作りませんでした。'
-    + '同じ方なら、その方の ID を既存個人ID に入れてください（または IDチェック）。'
+    + '同じ方なら、その方の ID を既存個人ID に入れて、もう一度押してください。'
     + '父・母が同じ方なら、その方の世帯の ID を、お子さまの行の既存世帯ID に入れてください（その世帯の父・母は作りません）。'
     + `別人だと確かめたときは、予約受付の行の「${R.allow}」にチェックを入れて、もう一度押してください。`
     + (hasR('allow') ? '' : `（予約受付の表に「${R.allow}」のチェックボックスの項目を作ってください）`));
@@ -361,6 +369,9 @@ if (blocks.length) {
       x.personId = await person.createRecordAsync(x.personNew);
     } else if (x.personRec) {
       x.personId = x.personRec.id;
+      // 見つかった方には、その方自身の世帯を書き戻す（なければ、この予約の世帯につなぐ）
+      const own = ownHouseOf(x.personRec);
+      if (own) x.houseId = own.id;
       // 見つかった個人に世帯がなければ、つなぐ
       if (x.houseId && !x.personRec.getCellValue(P.house)?.length) {
         await person.updateRecordAsync(x.personRec.id, { [P.house]: [{ id: x.houseId }] });
