@@ -118,11 +118,11 @@ const isCurrent = (href: string) => current === href || (href !== '/' && current
   <a href="#" class="p-pagetop" id="js-pagetop" aria-label="ページの先頭へ"></a>
 
   <script>
-    // トップページを開いたときの、白い背景のロゴ（旧サイトと同じ動き）。
-    // ロゴがふわっと出て、読み込みが終わり約3.5秒たったら、ロゴ→白い背景の順に消す
+    // トップページを開いたときの、白い背景のロゴ。
+    // ロゴが墨のように上から現れ、文言が1行ずつ出て、約4.4秒たったら、ロゴ→白い背景の順に消す
     const loading = document.getElementById('js-loading');
     if (loading) {
-      const MIN_MS = 3500;
+      const MIN_MS = 4400;
       const start = performance.now();
       const hide = () => {
         setTimeout(() => {

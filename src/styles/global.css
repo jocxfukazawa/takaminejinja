@@ -835,23 +835,41 @@ time.p-entry__date { color: var(--color-gray-text); font-size: 12px; }
   background: #fff;
   transition: opacity .5s ease .3s, visibility .5s ease .3s;
   /* スクリプトが動かなくても、7秒で消える */
-  animation: p-loading-out .5s ease 7s forwards;
+  animation: p-loading-out .5s ease 8s forwards;
 }
-.p-loading__inner {
-  text-align: center;
-  opacity: 0; transition: opacity .5s ease;
+.p-loading__inner { text-align: center; }
+/* ロゴ：墨が上から下へにじむように現れる（ぼかしが取れながら、上から順に見えてくる） */
+.p-loading__logo {
+  display: block; width: 200px; height: auto; margin: 0 auto;
+  opacity: 0; filter: blur(6px); transform: translateY(6px);
+  -webkit-mask-image: linear-gradient(to bottom, #000 45%, transparent 55%);
+  mask-image: linear-gradient(to bottom, #000 45%, transparent 55%);
+  -webkit-mask-size: 100% 200%; mask-size: 100% 200%;
+  -webkit-mask-position: 0 100%; mask-position: 0 100%;
 }
-.p-loading.is-shown .p-loading__inner { opacity: 1; }
-.p-loading__logo { display: block; width: 200px; height: auto; margin: 0 auto; }
+.p-loading.is-shown .p-loading__logo { animation: p-loading-ink 2.2s cubic-bezier(.45, 0, .35, 1) .2s forwards; }
+@keyframes p-loading-ink {
+  0% { opacity: 0; filter: blur(6px); transform: translateY(6px); -webkit-mask-position: 0 100%; mask-position: 0 100%; }
+  15% { opacity: 1; }
+  100% { opacity: 1; filter: blur(0); transform: none; -webkit-mask-position: 0 0; mask-position: 0 0; }
+}
 .p-loading__desc {
   margin: 28px 0 0;
   font-family: var(--font-mincho); font-weight: 700; font-size: 14px; line-height: 1.8; color: #000;
 }
-.p-loading__desc span { display: block; }
+/* 「創建972年」などは、ロゴのあとに1行ずつふわっと出る */
+.p-loading__desc span { display: block; opacity: 0; transform: translateY(6px); }
+.p-loading.is-shown .p-loading__desc span { animation: p-loading-line .7s ease forwards; }
+.p-loading.is-shown .p-loading__desc span:nth-child(1) { animation-delay: 2s; }
+.p-loading.is-shown .p-loading__desc span:nth-child(2) { animation-delay: 2.3s; }
+.p-loading.is-shown .p-loading__desc span:nth-child(3) { animation-delay: 2.6s; }
+@keyframes p-loading-line { to { opacity: 1; transform: none; } }
+.p-loading__inner { transition: opacity .4s ease; }
 .p-loading.is-hidden { opacity: 0; visibility: hidden; }
-.p-loading.is-hidden .p-loading__inner { opacity: 0; transition-duration: .3s; }
+.p-loading.is-hidden .p-loading__inner { opacity: 0; }
 @keyframes p-loading-out { to { opacity: 0; visibility: hidden; } }
 @media (max-width: 767px) { .p-loading__logo { width: 160px; } .p-loading__desc { margin-top: 22px; font-size: 13px; } }
 @media (prefers-reduced-motion: reduce) {
   .p-loading, .p-loading__inner { transition: none !important; animation-duration: .01s; }
+  .p-loading__logo, .p-loading__desc span { opacity: 1 !important; filter: none !important; transform: none !important; -webkit-mask-image: none !important; mask-image: none !important; }
 }
