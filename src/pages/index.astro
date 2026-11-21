@@ -6,7 +6,7 @@ import EventList from '../components/EventList.astro';
 import BlogList from '../components/BlogList.astro';
 import { UPLOADS, news, events, blog } from '../data/site';
 /** トップの演出の背景：'color'（にじんだ色）、'white'（白）、'clear'（透明。動画の上に直接） */
-const INTRO_MODE: 'color' | 'white' | 'clear' = 'color';
+const INTRO_MODE: 'color' | 'white' | 'clear' = 'white';
 const ink = INTRO_MODE === 'white' ? '-ink' : '';
 ---
 <Base front>
