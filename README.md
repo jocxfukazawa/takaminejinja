@@ -150,6 +150,8 @@ Cloudflare Pages の「設定 → 変数とシークレット」に、お問い�
 | `AIRTABLE_TABLE` | テキスト | `tbliY7bHIC8bt3ZvW`（予約受付） |
 | `AIRTABLE_CLOSURE_TABLE` | テキスト | `受付停止日` |
 
+`AIRTABLE_TOKEN` は年に一度作り直します（Airtable の「Personal access tokens」で新しく作る → 本番とプレビューの `AIRTABLE_TOKEN` を入れ替える → main と admin の最新のデプロイを「Retry deployment」→ 予約ページの日にちと印刷ページが動くのを確かめる → 古いトークンを消す）。
+
 ## ご祈祷の事前申し込み（/reservation/advance/）
 
 年始と黒星祈願祭など、予約を受けずに来られた順にご案内する日のための事前申し込みです。
