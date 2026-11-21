@@ -238,7 +238,7 @@ for (const [addr, members] of byAddr) {
   // 個人：既存個人IDが空の方は、同じ名前・生年月日の方を探す
   const people = members.map((r) => {
     const pid = str(r, R.personId);
-    if (pid) return { r, existing: true };
+    if (pid) { const rb0 = rowBirth(r); return { r, existing: true, birth: rb0.key, birthFromParts: rb0.fromParts }; }
     const [sei, mei] = splitName(str(r, R.name));
     const rb = rowBirth(r);
     const birth = rb.key;
