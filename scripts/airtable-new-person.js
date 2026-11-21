@@ -178,11 +178,14 @@ for (const [addr, members] of byAddr) {
   let houseNew = null;
   if (!houseRec) {
     const same = addr ? housesByAddr.get(addr) ?? [] : [];
-    if (same.length === 1) {
+    if (same.length === 1 && !same[0].name) {
+      problems.push(`住所「${str(members[0], R.address)}」の世帯が見つかりましたが、その世帯の ID が空です（レコードID ${same[0].id}）。世帯・会社の表でその行を確かめてから、もう一度押してください。`);
+      continue;
+    } else if (same.length === 1) {
       houseRec = same[0];
       console.log(`同じ住所の世帯が見つかりました：${houseRec.name}`);
     } else if (same.length > 1) {
-      problems.push(`住所「${str(members[0], R.address)}」の世帯が${same.length}つあります。既存世帯IDを手で入れてから、もう一度押してください。`);
+      problems.push(`住所「${str(members[0], R.address)}」の世帯が${same.length}つあります（${same.map((h) => h.name || `ID が空：${h.id}`).join('、')}）。既存世帯IDを手で入れてから、もう一度押してください。`);
       continue;
     } else if (!addr) {
       problems.push(`${str(members[0], R.name)}：住所が空なので、世帯を作れません。`);
