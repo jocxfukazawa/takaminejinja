@@ -247,6 +247,7 @@ for (const [addr, members] of byAddr) {
     if (linked) houseRec = hAll.getRecord(linked.id);
   }
   let houseNew = null;
+  let noHouse = false;
   if (!houseRec) {
     const same = addr ? housesByAddr.get(addr) ?? [] : [];
     if (same.length === 1 && !idOf(same[0])) {
@@ -259,8 +260,8 @@ for (const [addr, members] of byAddr) {
       problems.push(`住所「${str(members[0], R.address)}」の世帯が${same.length}つあります（${same.map((h) => idOf(h) || `ID が空：${h.id}`).join('、')}）。既存世帯IDを手で入れてから、もう一度押してください。`);
       continue;
     } else if (!addr) {
-      problems.push(`${str(members[0], R.name)}：住所が空なので、世帯を作れません。`);
-      continue;
+      // 住所が空：すでにいる方は ID を書き戻せるが、新しい世帯・個人は作れない
+      noHouse = true;
     } else {
       const src = members.includes(repRow) ? repRow : members[0];
       // 世帯の名前：父母の名前があれば父（いなければ母）、なければ代表の方
@@ -284,6 +285,7 @@ for (const [addr, members] of byAddr) {
     if (p.existing || p.skip) { plan.push({ row: p.r, houseRec, houseNew, keepPerson: true }); continue; }
     if (p.found) { plan.push({ row: p.r, houseRec, houseNew, personRec: p.found }); continue; }
     if (!p.sei) { problems.push('名前が空の行があります。'); continue; }
+    if (noHouse) { problems.push(`${p.sei}　${p.mei}：個人の表に見つからず、住所も空なので、作れません。住所を入れるか、既存世帯ID を入れてから、もう一度押してください。`); continue; }
     const [seiKana, meiKana] = splitName(str(p.r, hasR('kana') ? R.kana : null));
     const fields = {
       [P.sei]: p.sei, [P.mei]: p.mei,
@@ -312,6 +314,7 @@ for (const [addr, members] of byAddr) {
   // 父母も個人として作り、同じ世帯につなぐ（今ある世帯に同じ名前の方がいれば作らない）
   const tel = str(members.includes(repRow) ? repRow : members[0], hasR('tel') ? R.tel : null);
   for (const pa of parents) {
+    if (noHouse) { problems.push(`${pa.role}　${pa.sei}　${pa.mei}：住所が空なので、作れません。`); continue; }
     const label = `${pa.role}　${pa.sei}　${pa.mei}`;
     if (houseRec) {
       const inHouse = pAll.records.find((x) => (x.getCellValue(P.house) ?? []).some((l) => l.id === houseRec.id)
