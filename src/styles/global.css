@@ -920,3 +920,16 @@ body.is-intro .p-hero__arrow { opacity: 0; }
 @media (max-width: 767px) {
   .p-intro__logo { height: min(52vh, 360px); }
 }
+
+/* 背景を白にした演出：ロゴは元の色（ピンクのお印、黒い文字、赤い紋） */
+.p-intro--white { background: #fff; }
+.p-intro--white .p-intro__logo { filter: none; }
+.p-intro--white .p-intro__emblem-fill { display: none; }
+.p-intro--white .p-intro__emblem path { stroke: #e95472; fill: #e95472; fill-opacity: 0; }
+.p-intro--white.is-shown .p-intro__emblem path { animation: p-intro-trace 1.6s cubic-bezier(.5, 0, .3, 1) .2s forwards, p-intro-solid .8s ease 1.5s forwards; }
+@keyframes p-intro-solid { to { fill-opacity: 1; stroke-opacity: 0; } }
+.p-intro--white .p-intro__crest { fill: #e60013; }
+/* 背景を透明にした演出：動画の上に白いロゴ。読みやすいよう、少しだけ暗くする */
+.p-intro--clear { background: rgba(0, 20, 43, .32); transition: opacity .9s ease; }
+.p-intro--clear .p-intro__canvas { display: none; }
+.p-intro--clear.is-gone { opacity: 0; }
