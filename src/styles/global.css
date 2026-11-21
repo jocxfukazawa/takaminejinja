@@ -827,3 +827,31 @@ time.p-entry__date { color: var(--color-gray-text); font-size: 12px; }
 .p-reception-event { margin: 0 0 24px; padding: 14px 16px; border-top: 3px solid var(--color-red); border-bottom: 1px solid #ddd; text-align: center; line-height: 1.6; }
 .p-reception-event strong { display: block; font-family: var(--font-mincho); font-size: 24px; font-weight: 600; letter-spacing: .1em; color: var(--color-red); }
 .p-reception-event span { display: block; margin-top: 4px; font-size: 14px; }
+
+/* ── トップページを開いたときの、白い背景のロゴ（旧サイトのロード画面と同じ大きさ・動き） ── */
+.p-loading {
+  position: fixed; inset: 0; z-index: 9999;
+  display: flex; align-items: center; justify-content: center;
+  background: #fff;
+  transition: opacity .5s ease .3s, visibility .5s ease .3s;
+  /* スクリプトが動かなくても、7秒で消える */
+  animation: p-loading-out .5s ease 7s forwards;
+}
+.p-loading__inner {
+  text-align: center;
+  opacity: 0; transition: opacity .5s ease;
+}
+.p-loading.is-shown .p-loading__inner { opacity: 1; }
+.p-loading__logo { display: block; width: 200px; height: auto; margin: 0 auto; }
+.p-loading__desc {
+  margin: 28px 0 0;
+  font-family: var(--font-mincho); font-weight: 700; font-size: 14px; line-height: 1.8; color: #000;
+}
+.p-loading__desc span { display: block; }
+.p-loading.is-hidden { opacity: 0; visibility: hidden; }
+.p-loading.is-hidden .p-loading__inner { opacity: 0; transition-duration: .3s; }
+@keyframes p-loading-out { to { opacity: 0; visibility: hidden; } }
+@media (max-width: 767px) { .p-loading__logo { width: 160px; } .p-loading__desc { margin-top: 22px; font-size: 13px; } }
+@media (prefers-reduced-motion: reduce) {
+  .p-loading, .p-loading__inner { transition: none !important; animation-duration: .01s; }
+}

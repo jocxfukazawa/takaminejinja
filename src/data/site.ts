@@ -12,6 +12,8 @@ export const UPLOADS = '/wp-content/uploads';
 export const ICON = `${UPLOADS}/2023/06/icon.png`;
 export const LOGO = `${UPLOADS}/2023/07/02_takamine_yoko_02.png`;
 export const LOGO_WHITE = `${UPLOADS}/2023/06/header_logo-1.png`;
+/** トップページを開いたときに、白い背景に出す縦書きのロゴ（旧サイトと同じ） */
+export const LOGO_LOADING = `${UPLOADS}/2023/07/02_takamine_tate_01.png`;
 export const FAVICON = `${UPLOADS}/2023/08/cropped-takamine_icon_02-scaled-1-32x32.jpg`;
 export const APPLE_ICON = `${UPLOADS}/2023/08/cropped-takamine_icon_02-scaled-1-180x180.jpg`;
 export const FOOTER_LINK_IMG = `${UPLOADS}/2023/06/footer_img01.png`;
