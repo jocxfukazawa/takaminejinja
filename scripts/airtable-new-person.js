@@ -62,6 +62,8 @@ const hasP = check(person, P, ['sei', 'mei', 'house']);
 const hasH = check(house, H, ['address']);
 const hasR = check(reserve, R, ['name']);
 
+/** いちばん左の項目（ID）。空の行は Airtable が「Unnamed record」と返すので、空にする */
+const idOf = (r) => (r && r.name && r.name !== 'Unnamed record' ? r.name : '');
 const str = (r, f) => (f ? r.getCellValueAsString(f).trim() : '');
 /** 比べるための文字（全角・半角、空白、ハイフンの違いをならす） */
 const norm = (s) => String(s ?? '').normalize('NFKC').replace(/[\s　]/g, '').replace(/[‐‑‒–—―−ーｰ-]/g, '-').toLowerCase();
@@ -128,7 +130,7 @@ console.log(`予約グループ：${groupNo || '（なし）'}　${rows.length}�
 // ── 今ある個人・世帯 ──
 const pAll = await person.selectRecordsAsync({ fields: [P.sei, P.mei, ...(hasP('birth') ? [P.birth] : []), P.house] });
 const hAll = await house.selectRecordsAsync({ fields: [H.address, ...(hasH('building') ? [H.building] : [])] });
-const houseByName = new Map(hAll.records.map((h) => [h.name, h]));
+const houseByName = new Map(hAll.records.filter(idOf).map((h) => [idOf(h), h]));
 const personKey = (sei, mei, birth) => `${norm(sei)}${norm(mei)}|${birth ?? ''}`;
 const personIndex = new Map();
 for (const p of pAll.records) {
@@ -178,14 +180,14 @@ for (const [addr, members] of byAddr) {
   let houseNew = null;
   if (!houseRec) {
     const same = addr ? housesByAddr.get(addr) ?? [] : [];
-    if (same.length === 1 && !same[0].name) {
+    if (same.length === 1 && !idOf(same[0])) {
       problems.push(`住所「${str(members[0], R.address)}」の世帯が見つかりましたが、その世帯の ID が空です（レコードID ${same[0].id}）。世帯・会社の表でその行を確かめてから、もう一度押してください。`);
       continue;
     } else if (same.length === 1) {
       houseRec = same[0];
-      console.log(`同じ住所の世帯が見つかりました：${houseRec.name}`);
+      console.log(`同じ住所の世帯が見つかりました：${idOf(houseRec)}`);
     } else if (same.length > 1) {
-      problems.push(`住所「${str(members[0], R.address)}」の世帯が${same.length}つあります（${same.map((h) => h.name || `ID が空：${h.id}`).join('、')}）。既存世帯IDを手で入れてから、もう一度押してください。`);
+      problems.push(`住所「${str(members[0], R.address)}」の世帯が${same.length}つあります（${same.map((h) => idOf(h) || `ID が空：${h.id}`).join('、')}）。既存世帯IDを手で入れてから、もう一度押してください。`);
       continue;
     } else if (!addr) {
       problems.push(`${str(members[0], R.name)}：住所が空なので、世帯を作れません。`);
@@ -237,8 +239,8 @@ for (const [addr, members] of byAddr) {
 // ── 予定を出す ──
 for (const x of plan) {
   const who = str(x.row, R.name);
-  const h = x.houseRec ? `既存の世帯 ${x.houseRec.name}` : '新しい世帯を作る';
-  const p = x.keepPerson ? '個人はそのまま' : x.personRec ? `既存の個人 ${x.personRec.name} を使う` : '新しい個人を作る';
+  const h = x.houseRec ? `既存の世帯 ${idOf(x.houseRec) || `（ID が空：${x.houseRec.id}）`}` : '新しい世帯を作る';
+  const p = x.keepPerson ? '個人はそのまま' : x.personRec ? `既存の個人 ${idOf(x.personRec)} を使う` : '新しい個人を作る';
   console.log(`${who}：${p}／${h}`);
 }
 if (DRY_RUN) {
@@ -272,11 +274,12 @@ if (DRY_RUN) {
   const updates = [];
   for (const x of plan) {
     const f = {};
-    const pName = x.personId ? pNow.getRecord(x.personId)?.name : '';
-    const hName = x.houseId ? hNow.getRecord(x.houseId)?.name : '';
+    const pName = x.personId ? idOf(pNow.getRecord(x.personId)) : '';
+    const hName = x.houseId ? idOf(hNow.getRecord(x.houseId)) : '';
     if (pName && !str(x.row, R.personId)) f[R.personId] = pName;
     if (hName && !str(x.row, R.houseId)) f[R.houseId] = hName;
-    if (x.personId && !pName) problems.push(`${str(x.row, R.name)}：作った個人の ID が読めませんでした。既存個人IDを手で入れてください。`);
+    if (x.personId && !pName) problems.push(`${str(x.row, R.name)}：個人の ID が読めませんでした（レコードID ${x.personId}）。既存個人IDを手で入れてください。`);
+    if (x.houseId && !hName) problems.push(`${str(x.row, R.name)}：世帯の ID が読めませんでした（レコードID ${x.houseId}）。既存世帯IDを手で入れてください。`);
     if (Object.keys(f).length) updates.push({ id: x.row.id, fields: f });
   }
   for (let i = 0; i < updates.length; i += 50) await reserve.updateRecordsAsync(updates.slice(i, i + 50));
