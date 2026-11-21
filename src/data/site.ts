@@ -58,6 +58,8 @@ export interface Entry {
 
 export interface NewsEntry extends Entry {
   thumb: string | null;
+  /** 記事の末尾に応募フォームを表示する */
+  form?: 'miko' | 'maihime';
 }
 
 export interface EventEntry extends Entry {
