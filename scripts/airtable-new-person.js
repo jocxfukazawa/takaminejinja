@@ -7,12 +7,17 @@
  *       1) その住所の方に、すでに既存世帯IDが入っていれば、その世帯を使う
  *       2) 世帯・会社の表に、同じ住所の世帯が1つだけあれば、その世帯を使う（2つ以上あれば、作らずに知らせる）
  *          種類が「会社・団体」の行は、住所が同じでも使わない（ご自宅を連絡先にしている団体など）
- *       3) どれもなければ、新しく作る（郵便番号・住所・建物名等・電話番号・ふりがなの姓）
+ *       3) どれもなければ、新しく作る（世帯・会社名・ふりがな・郵便番号・住所・建物名等・電話番号）
  *   - 個人：既存個人IDが空の方だけ作る（姓・名・ふりがな・性別・生年月日・元号/年/月/日、代表の方は電話番号）。
  *       続柄は空のまま（後で手で入れる）。
  *       作る前に、同じ名前・同じ生年月日の方が個人の表にいないか調べる。いれば作らず、その方の ID を使う。
  *   - 最後に、予約受付の行の「既存個人ID」「既存世帯ID」に、作った（見つけた）方の ID を書き戻す。
  *     予約ステータスは変えない。確かめてから、いつもどおり「登録完了」にする。
+ *   - 七五三詣・初宮詣など「父母の名前」が入っている予約：
+ *       新しい世帯は父の名前で作り（父の名前がなければ母）、父・母も個人として作って同じ世帯につなぐ。
+ *       使う世帯が今ある世帯なら、その世帯に同じ名前の方がいれば、その方は作らない。
+ *       電話番号は、子ではなく父（いなければ母）の個人に入れる。
+ *   - そのほかの新しい世帯の名前は、代表の方の名前にする。
  *
  * 入力（Input variables）：recordId ＝ トリガーの「Airtable record ID」
  * DRY_RUN = true のあいだは、何も作らずに、作る予定だけを出す。
@@ -30,7 +35,7 @@ const R = {
   name: '名前', kana: 'ふりがな', gender: '性別', birth: '生年月日',
   zip: '郵便番号', address: '住所', building: '建物名等', tel: '電話番号',
   group: '予約グループ', rep: '代表者', status: '予約ステータス',
-  personId: '既存個人ID', houseId: '既存世帯ID',
+  personId: '既存個人ID', houseId: '既存世帯ID', parents: '父母の名前',
 };
 // 個人の項目
 const P = {
@@ -40,7 +45,7 @@ const P = {
 };
 // 世帯・会社の項目
 const H = {
-  kana: '世帯・会社名（ふりがな）', kind: '世帯・会社の種類',
+  name: '世帯・会社名', kana: '世帯・会社名（ふりがな）', kind: '世帯・会社の種類',
   zip: '郵便番号', address: '住所', building: '建物名等', tel: '電話番号',
 };
 const SKIP_STATUS = ['キャンセル'];
@@ -117,6 +122,24 @@ const kindChoice = (() => {
   return hit ? { name: hit.name } : null;
 })();
 
+/** 書き込める項目か（数式などは書き込めない） */
+const writable = (table, name) => {
+  const f = table.fields.find((x) => x.name === name);
+  return !!f && !['formula', 'rollup', 'lookup', 'multipleLookupValues', 'autoNumber', 'createdTime', 'lastModifiedTime', 'count'].includes(f.type);
+};
+/** 父母の名前（「父　高嶺　太郎（たかみね　たろう）」の行が並んだもの）を読む */
+const parseParents = (text) => {
+  const out = [];
+  for (const line of String(text ?? '').split(/\r?\n/)) {
+    const m = line.trim().match(/^(父|母)[\s\u3000:：]*([^（(]+?)\s*(?:[（(]([^）)]*)[）)])?\s*$/);
+    if (!m) continue;
+    const [sei, mei] = splitName(m[2]);
+    const [seiKana, meiKana] = splitName(m[3] ?? '');
+    if (sei) out.push({ role: m[1], sei, mei, seiKana, meiKana });
+  }
+  return out;
+};
+
 // ── 押した行と、同じ予約グループの行 ──
 const rFields = Object.keys(R).filter((k) => hasR(k)).map((k) => R[k]);
 const all = await reserve.selectRecordsAsync({ fields: rFields });
@@ -172,6 +195,10 @@ for (const [addr, members] of byAddr) {
     return { r, sei, mei, birth, found: found.length === 1 ? found[0] : null, skip: found.length > 1 };
   });
 
+  // 父母（七五三詣・初宮詣など）
+  const parents = parseParents(members.map((r) => str(r, hasR('parents') ? R.parents : null)).find(Boolean));
+  const headParent = parents.find((x) => x.role === '父') ?? parents.find((x) => x.role === '母') ?? null;
+
   // 世帯：1) 既存世帯IDが入っている方  2) 見つかった個人の世帯  3) 同じ住所の世帯  4) 新しく作る
   let houseRec = null;
   for (const r of members) {
@@ -200,13 +227,18 @@ for (const [addr, members] of byAddr) {
       continue;
     } else {
       const src = members.includes(repRow) ? repRow : members[0];
-      const [seiKana] = splitName(str(src, hasR('kana') ? R.kana : null));
+      // 世帯の名前：父母の名前があれば父（いなければ母）、なければ代表の方
+      const head = headParent ?? { ...Object.fromEntries(['sei', 'mei'].map((k, i) => [k, splitName(str(src, R.name))[i]])),
+        ...Object.fromEntries(['seiKana', 'meiKana'].map((k, i) => [k, splitName(str(src, hasR('kana') ? R.kana : null))[i]])) };
+      const headName = [head.sei, head.mei].filter(Boolean).join('　');
+      const headKana = [head.seiKana, head.meiKana].filter(Boolean).join('　');
       houseNew = {
+        ...(writable(house, H.name) && headName ? { [H.name]: headName } : {}),
         [H.address]: str(src, R.address),
         ...(hasH('building') && hasR('building') ? { [H.building]: str(src, R.building) } : {}),
         ...(hasH('zip') && hasR('zip') ? { [H.zip]: str(src, R.zip) } : {}),
         ...(hasH('tel') && hasR('tel') ? { [H.tel]: str(src, R.tel) } : {}),
-        ...(hasH('kana') && seiKana ? { [H.kana]: seiKana } : {}),
+        ...(hasH('kana') && headKana ? { [H.kana]: headKana } : {}),
         ...(kindChoice ? { [H.kind]: kindChoice } : {}),
       };
     }
@@ -237,15 +269,33 @@ for (const [addr, members] of byAddr) {
     } else {
       console.log(`${p.sei}　${p.mei}：生年月日が分からないので、空のまま作ります。`);
     }
-    if (p.r === repRow && hasP('tel') && hasR('tel') && str(p.r, R.tel)) fields[P.tel] = str(p.r, R.tel);
+    if (!headParent && p.r === repRow && hasP('tel') && hasR('tel') && str(p.r, R.tel)) fields[P.tel] = str(p.r, R.tel);
     plan.push({ row: p.r, houseRec, houseNew, personNew: fields });
+  }
+
+  // 父母も個人として作り、同じ世帯につなぐ（今ある世帯に同じ名前の方がいれば作らない）
+  const tel = str(members.includes(repRow) ? repRow : members[0], hasR('tel') ? R.tel : null);
+  for (const pa of parents) {
+    const label = `${pa.role}　${pa.sei}　${pa.mei}`;
+    if (houseRec) {
+      const inHouse = pAll.records.find((x) => (x.getCellValue(P.house) ?? []).some((l) => l.id === houseRec.id)
+        && norm(x.getCellValueAsString(P.sei) + x.getCellValueAsString(P.mei)) === norm(pa.sei + pa.mei));
+      if (inHouse) { console.log(`${label}：世帯にすでにいらっしゃるので、作りません（${idOf(inHouse)}）`); continue; }
+    }
+    const fields = { [P.sei]: pa.sei, [P.mei]: pa.mei,
+      ...(hasP('seiKana') && pa.seiKana ? { [P.seiKana]: pa.seiKana } : {}),
+      ...(hasP('meiKana') && pa.meiKana ? { [P.meiKana]: pa.meiKana } : {}) };
+    const g = choice(person, P.gender, pa.role === '父' ? ['男', '男性'] : ['女', '女性']);
+    if (hasP('gender') && g) fields[P.gender] = g;
+    if (pa === headParent && hasP('tel') && tel) fields[P.tel] = tel;
+    plan.push({ row: null, label, houseRec, houseNew, personNew: fields });
   }
 }
 
 // ── 予定を出す ──
 for (const x of plan) {
-  const who = str(x.row, R.name);
-  const h = x.houseRec ? `既存の世帯 ${idOf(x.houseRec) || `（ID が空：${x.houseRec.id}）`}` : '新しい世帯を作る';
+  const who = x.row ? str(x.row, R.name) : x.label;
+  const h = x.houseRec ? `既存の世帯 ${idOf(x.houseRec) || `（ID が空：${x.houseRec.id}）`}` : `新しい世帯を作る（${x.houseNew?.[H.name] ?? '名前なし'}）`;
   const p = x.keepPerson ? '個人はそのまま' : x.personRec ? `既存の個人 ${idOf(x.personRec)} を使う` : '新しい個人を作る';
   console.log(`${who}：${p}／${h}`);
 }
@@ -279,6 +329,7 @@ if (DRY_RUN) {
   const hNow = await house.selectRecordsAsync();
   const updates = [];
   for (const x of plan) {
+    if (!x.row) continue; // 父母の分は、予約受付に書き戻す行がない
     const f = {};
     const pName = x.personId ? idOf(pNow.getRecord(x.personId)) : '';
     const hName = x.houseId ? idOf(hNow.getRecord(x.houseId)) : '';
