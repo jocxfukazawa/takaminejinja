@@ -4,7 +4,7 @@ import Headline from '../components/Headline.astro';
 import NewsList from '../components/NewsList.astro';
 import EventList from '../components/EventList.astro';
 import BlogList from '../components/BlogList.astro';
-import { UPLOADS, news, events, blog } from '../data/site';
+import { UPLOADS, LOGO_WHITE, news, events, blog } from '../data/site';
 ---
 <Base front>
   <div class="p-hero">
@@ -12,6 +12,19 @@ import { UPLOADS, news, events, blog } from '../data/site';
       <source src={`${UPLOADS}/2023/06/top_movie.mov`} type="video/mp4" />
     </video>
     <a class="p-hero__arrow" href="#intro" aria-label="下へ"></a>
+    <!-- 開いたときの演出：にじんだ色の上に白いロゴが現れ、色がざらっと溶けて動画になる -->
+    <div class="p-intro" id="js-intro" aria-hidden="true">
+      <canvas class="p-intro__canvas" id="js-intro-canvas"></canvas>
+      <div class="p-intro__inner">
+        <img class="p-intro__logo" src={LOGO_WHITE} alt="" width="184" height="206" fetchpriority="high" />
+        <p class="p-intro__copy">大切な人の<br />幸せを祈る場所</p>
+      </div>
+    </div>
+    <script is:inline>
+      // 動きを減らす設定の方には出さない。そうでなければ、演出のあいだ上のロゴとメニューを隠す
+      if (matchMedia('(prefers-reduced-motion: reduce)').matches) document.getElementById('js-intro').remove();
+      else document.body.classList.add('is-intro');
+    </script>
   </div>
 
   <section class="p-index-intro" id="intro">
@@ -61,3 +74,76 @@ import { UPLOADS, news, events, blog } from '../data/site';
     </div>
   </section>
 </Base>
+
+<script>
+  // トップの演出（案B）。色のにじみを canvas に描き、最後は細かい粒で溶けるように消す
+  const intro = document.getElementById('js-intro');
+  const canvas = document.getElementById('js-intro-canvas') as HTMLCanvasElement | null;
+  if (intro && canvas) {
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
+    const SCALE = 3; // 3px ごとの粒
+    let w = 0, h = 0, noise = new Float32Array(0);
+    const resize = () => {
+      w = Math.max(1, Math.ceil(intro.clientWidth / SCALE));
+      h = Math.max(1, Math.ceil(intro.clientHeight / SCALE));
+      canvas.width = w; canvas.height = h;
+      noise = new Float32Array(w * h);
+      for (let i = 0; i < noise.length; i++) noise[i] = Math.random();
+    };
+    resize();
+    // お印のピンク、若草の緑、山吹の黄、空の青み
+    const blobs = [
+      { c: [232, 84, 113], x: .28, y: .62, r: .75, sx: .07, sy: .05, sp: .00035 },
+      { c: [126, 186, 122], x: .78, y: .35, r: .8, sx: .06, sy: .08, sp: .00028 },
+      { c: [244, 190, 96], x: .55, y: .2, r: .6, sx: .09, sy: .05, sp: .00042 },
+      { c: [150, 200, 190], x: .85, y: .85, r: .6, sx: .05, sy: .06, sp: .0003 },
+    ];
+    const draw = (t: number) => {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = 'rgb(246, 214, 190)';
+      ctx.fillRect(0, 0, w, h);
+      const m = Math.max(w, h);
+      for (const b of blobs) {
+        const x = (b.x + Math.sin(t * b.sp) * b.sx) * w;
+        const y = (b.y + Math.cos(t * b.sp * 1.3) * b.sy) * h;
+        const g = ctx.createRadialGradient(x, y, 0, x, y, b.r * m);
+        g.addColorStop(0, `rgba(${b.c.join(',')}, .95)`);
+        g.addColorStop(1, `rgba(${b.c.join(',')}, 0)`);
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, w, h);
+      }
+    };
+    const DISSOLVE_AT = 3800, DISSOLVE_MS = 1300;
+    const start = performance.now();
+    let raf = 0;
+    const frame = (now: number) => {
+      const t = now - start;
+      draw(t);
+      // canvas が描き始めたら、下に敷いた同じ色のにじみは外す（溶けたところから動画が見えるように）
+      intro.classList.add('is-canvas');
+      if (t > DISSOLVE_AT) {
+        // 粒ごとに決めた順で透明にしていく（ざらっと溶ける）
+        const p = Math.min(1, (t - DISSOLVE_AT) / DISSOLVE_MS);
+        const img = ctx.getImageData(0, 0, w, h);
+        const d = img.data;
+        const edge = .35;
+        for (let i = 0; i < noise.length; i++) {
+          const a = (noise[i] - (p * (1 + edge) - edge)) / edge;
+          d[i * 4 + 3] = a <= 0 ? 0 : a >= 1 ? 255 : a * 255;
+        }
+        ctx.putImageData(img, 0, 0);
+        if (p >= 1) {
+          intro.remove();
+          document.body.classList.remove('is-intro');
+          return;
+        }
+      }
+      raf = requestAnimationFrame(frame);
+    };
+    raf = requestAnimationFrame(frame);
+    requestAnimationFrame(() => intro.classList.add('is-shown'));
+    setTimeout(() => intro.classList.add('is-leaving'), DISSOLVE_AT - 300);
+    window.addEventListener('resize', resize);
+  }
+</script>
+
