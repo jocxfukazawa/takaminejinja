@@ -873,34 +873,50 @@ time.p-entry__date { color: var(--color-gray-text); font-size: 12px; }
 .p-intro__canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
 .p-intro__inner { position: relative; text-align: center; color: #fff; transition: opacity .5s ease; }
 .p-intro.is-leaving .p-intro__inner { opacity: 0; }
-/* 白いロゴ：上から下へ、ぼかしが取れながら現れる */
-.p-intro__logo {
-  display: block; width: 150px; height: auto; margin: 0 auto;
-  opacity: 0; filter: blur(6px) drop-shadow(0 2px 12px rgba(120, 40, 50, .25));
+/* ロゴ（縦長。デザイン会社のデータの比率 230:450） */
+.p-intro__logo { position: relative; height: min(62vh, 440px); aspect-ratio: 230 / 450; filter: drop-shadow(0 2px 14px rgba(110, 40, 50, .28)); }
+.p-intro__mark { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+/* お印：白い線で輪郭をなぞり、そのあと中を白く塗る */
+.p-intro__emblem path {
+  fill: none;
+  stroke: #fff; stroke-width: 1.4; stroke-linejoin: round;
+  stroke-dasharray: 1; stroke-dashoffset: 1;
+}
+.p-intro.is-shown .p-intro__emblem path { animation: p-intro-trace 1.6s cubic-bezier(.5, 0, .3, 1) .2s forwards, p-intro-unstroke .8s ease 1.5s forwards; }
+@keyframes p-intro-trace { to { stroke-dashoffset: 0; } }
+@keyframes p-intro-unstroke { to { stroke-opacity: 0; } }
+/* 塗りは、文字の周りをくり抜いた形（白い文字が重なっても読めるように） */
+.p-intro__emblem-fill { fill: #fff; opacity: 0; }
+.p-intro.is-shown .p-intro__emblem-fill { animation: p-intro-fill .8s ease 1.5s forwards; }
+@keyframes p-intro-fill { to { opacity: 1; } }
+/* 紋：最後にふわっと */
+.p-intro__crest { fill: #fff; opacity: 0; transform-box: fill-box; transform-origin: center; transform: scale(.85); }
+.p-intro.is-shown .p-intro__crest { animation: p-intro-crest .8s ease 3.1s forwards; }
+@keyframes p-intro-crest { to { opacity: 1; transform: none; } }
+/* 文字：1字ずつ、上から下へ書くように出す */
+.p-intro__char {
+  position: absolute; display: block; opacity: 0;
   -webkit-mask-image: linear-gradient(to bottom, #000 45%, transparent 55%);
   mask-image: linear-gradient(to bottom, #000 45%, transparent 55%);
   -webkit-mask-size: 100% 200%; mask-size: 100% 200%;
   -webkit-mask-position: 0 100%; mask-position: 0 100%;
 }
-.p-intro.is-shown .p-intro__logo { animation: p-intro-logo 2s cubic-bezier(.45, 0, .35, 1) .3s forwards; }
-@keyframes p-intro-logo {
-  0% { opacity: 0; }
-  15% { opacity: 1; }
-  100% { opacity: 1; filter: blur(0) drop-shadow(0 2px 12px rgba(120, 40, 50, .25)); -webkit-mask-position: 0 0; mask-position: 0 0; }
+.p-intro.is-shown .p-intro__char { animation: p-intro-write .55s cubic-bezier(.4, 0, .4, 1) forwards; }
+.p-intro.is-shown .p-intro__char--koh { animation-delay: 1.8s; }
+.p-intro.is-shown .p-intro__char--rei { animation-delay: 2.15s; }
+.p-intro.is-shown .p-intro__char--shin { animation-delay: 2.5s; }
+.p-intro.is-shown .p-intro__char--sha { animation-delay: 2.85s; }
+.p-intro.is-shown .p-intro__char--yuki { animation-duration: 1s; animation-delay: 3.1s; }
+@keyframes p-intro-write {
+  0% { opacity: 1; -webkit-mask-position: 0 100%; mask-position: 0 100%; }
+  100% { opacity: 1; -webkit-mask-position: 0 0; mask-position: 0 0; }
 }
-.p-intro__copy {
-  margin: 34px 0 0; opacity: 0; transform: translateY(8px);
-  font-family: var(--font-mincho); font-size: 20px; letter-spacing: .25em; line-height: 2;
-  text-shadow: 0 1px 3px rgba(90, 30, 40, .35), 0 1px 14px rgba(90, 30, 40, .35);
-}
-.p-intro.is-shown .p-intro__copy { animation: p-intro-copy 1s ease 1.9s forwards; }
-@keyframes p-intro-copy { to { opacity: 1; transform: none; } }
 @keyframes p-intro-out { to { opacity: 0; visibility: hidden; } }
 /* 演出のあいだは、上のロゴとメニューを隠し、終わったらふわっと出す */
-.p-front-header { transition: opacity .8s ease; }
+/* 隠すときはすぐに、出すときだけふわっと（開いた直後に一瞬見えないように） */
+body:not(.is-intro) .p-front-header { transition: opacity .8s ease; }
 body.is-intro .p-front-header { opacity: 0; }
 body.is-intro .p-hero__arrow { opacity: 0; }
 @media (max-width: 767px) {
-  .p-intro__logo { width: 110px; }
-  .p-intro__copy { margin-top: 24px; font-size: 16px; }
+  .p-intro__logo { height: min(52vh, 360px); }
 }
