@@ -342,6 +342,8 @@ body:not(.is-front) .l-main { padding-top: var(--header-height); }
 .p-social-nav a:hover { color: var(--color-red); }
 .p-copyright { background: #000; color: #fff; text-align: center; padding: 14px 0; font-size: 12px; }
 .p-copyright small { font-size: inherit; }
+.p-copyright__privacy { display: block; margin-bottom: 6px; color: #fff; text-decoration: underline; }
+.p-copyright__privacy:hover { color: #fff; opacity: .8; }
 
 .p-pagetop {
   position: fixed; right: 20px; bottom: 20px; z-index: 90;
@@ -827,3 +829,9 @@ time.p-entry__date { color: var(--color-gray-text); font-size: 12px; }
 .p-reception-event { margin: 0 0 24px; padding: 14px 16px; border-top: 3px solid var(--color-red); border-bottom: 1px solid #ddd; text-align: center; line-height: 1.6; }
 .p-reception-event strong { display: block; font-family: var(--font-mincho); font-size: 24px; font-weight: 600; letter-spacing: .1em; color: var(--color-red); }
 .p-reception-event span { display: block; margin-top: 4px; font-size: 14px; }
+
+/* 個人情報の取り扱い（/privacy/） */
+.p-privacy h2 { margin: 2.2em 0 .8em; padding-bottom: .3em; border-bottom: 1px solid #ddd; font-family: var(--font-mincho); font-size: 18px; font-weight: 600; }
+.p-privacy ul { margin: .6em 0; padding-left: 1.4em; }
+.p-privacy li { margin: .3em 0; list-style: disc; }
+.p-privacy__date { margin-top: 2.5em; text-align: right; }

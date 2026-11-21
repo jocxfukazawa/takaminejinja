@@ -50,7 +50,7 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
       <label>空欄のままにしてください <input type="text" name="website" tabindex="-1" autocomplete="off" /></label>
     </div>
     <div class="cf-turnstile" data-sitekey={siteKey} data-language="ja"></div>
-    <p class="p-contact-form__note">※ ボタンを押すと送信されます。内容をご確認ください。</p>
+    <p class="p-contact-form__note">※ ボタンを押すと送信されます。内容をご確認ください。<br />※ ご入力いただいた個人情報は、<a href="/privacy/">個人情報の取り扱い</a>に沿って大切に取り扱います。</p>
     <p class="p-contact-form__error" id="js-form-error" role="alert" hidden></p>
     <p class="p-contact-form__submit"><button type="submit" class="p-btn">内容を確定して送信する</button></p>
   </form>

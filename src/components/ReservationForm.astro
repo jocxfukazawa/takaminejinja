@@ -260,6 +260,7 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
   ) : (
     <p class="p-contact-form__note">※ 送信の時点では仮予約です。神社で確認のうえ、ご予約確定のメールをお送りします。<br />※ 送信後、ご入力のメールアドレスに受付のメールが届きます。届かない場合は、迷惑メールのフォルダもご確認ください。</p>
   )}
+  <p class="p-contact-form__note p-reserve__privacy">※ ご入力いただいた個人情報は、ご祈祷の受付と、ご祈祷・御供の記録として大切にお預かりします。詳しくは<a href="/privacy/" target="_blank" rel="noopener">個人情報の取り扱い</a>をご覧ください。</p>
   <p class="p-contact-form__error" id="js-form-error" role="alert" hidden></p>
   <p class="p-contact-form__submit"><button type="submit" class="p-btn">{reception ? '申し込む' : advance ? '事前申し込みを送信する' : '仮予約を送信する'}</button></p>
 </form>
