@@ -919,15 +919,29 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
         personRec: card.dataset.personRec ?? '', houseRec: card.dataset.houseRec ?? '',
       };
     });
-    const body = {
+    const body: Record<string, unknown> = {
       date: val('date'), time: val('time'), zip: val('zip'), address: val('address'), building: val('building'),
       tel: val('tel'), message: val('message'), people,
     };
     try {
-      const res = await fetch(form.action, {
+      type Dup = { name: string; no: string; route: string; status: string; rowName: string };
+      const send = () => fetch(form.action, {
         method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), credentials: 'same-origin',
       });
-      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; numbers?: string[]; names?: string[]; warning?: string };
+      let res = await send();
+      let data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; numbers?: string[]; names?: string[]; warning?: string; duplicates?: Dup[] };
+      // 同じ御祈祷日に同じ方の予約がすでにあるとき：確かめてから、重ねて登録する
+      if (res.status === 409 && data.duplicates?.length) {
+        const lines = data.duplicates.map((d) => `・${d.rowName || d.name}（${d.no ? `予約番号 ${d.no}・` : ''}${d.route || '受付経路なし'}・${d.status}）`).join('\n');
+        const go = confirm(`同じ御祈祷日に、同じ方の予約がすでに予約受付にあります。\n${lines}\n\n電話の予約などで、すでに入っている方ではありませんか。\nすでにある行を使う場合は「キャンセル」を押して、その行に書き足してください。\n別の申し込みとして重ねて登録する場合は「OK」を押してください。`);
+        if (!go) {
+          showError('登録していません。すでにある予約受付の行を確かめてください。');
+          return;
+        }
+        body.confirmDuplicate = true;
+        res = await send();
+        data = (await res.json().catch(() => ({}))) as typeof data;
+      }
       if (!res.ok || !data.ok) {
         showError(data.error || (res.status === 403 ? 'ログインが切れました。ページを再読み込みして、ログインし直してください。' : `登録できませんでした（${res.status}）。`));
         return;
