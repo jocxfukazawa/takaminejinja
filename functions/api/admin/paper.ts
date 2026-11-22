@@ -8,6 +8,7 @@
  *   ご家族をまとめるため、全員の「予約グループ」に同じ値を入れる（番号のある最初の方の番号。だれも番号がなければ「窓口-日時」）。
  *   受付経路「窓口」、予約ステータス「予約確定」、祈祷方法「来社」。
  *   生年月日は和暦（元号・年・月・日）で受け取り、Web の予約と同じ「YYYY/MM/DD」で入れる。
+ *   画面で登録済みの方を選んだときは、その方の個人・世帯の ID を「既存個人ID」「既存世帯ID」に入れる。
  *   初穂料は、入っていれば「初穂料」の項目に入れる（その項目が数式などで書き込めなければ、入れずに知らせる）。
  *
  * Cloudflare Access のログインを通ってきたときだけ受け付ける（src/lib/access.ts）。
@@ -51,7 +52,9 @@ export function warekiToKey(era: string, y: number, m: number, d: number): strin
 }
 
 interface PersonIn {
-  no?: string; special?: string; sei?: string; mei?: string; seiKana?: string; meiKana?: string; gender?: string;
+  no?: string; special?: string; sei?: string;
+  /** 登録済みの方を選んだとき：個人の「Name」と、世帯の「世帯・会社名」（予約受付の既存個人ID・既存世帯ID に入れる） */
+  personId?: string; houseId?: string; mei?: string; seiKana?: string; meiKana?: string; gender?: string;
   era?: string; y?: string | number; m?: string | number; d?: string | number;
   prayers?: string[]; other?: string; haraobi?: string; car?: string;
   father?: string; fatherKana?: string; mother?: string; motherKana?: string; fee?: string | number;
@@ -132,7 +135,9 @@ export const onRequestPost: PagesFunction<AirtableEnv & AccessEnv> = async ({ re
     const feeText = clean(p.fee).replace(/[^0-9]/g, '');
     const fee = feeText ? Number(feeText) : 0;
     if (fee > 10_000_000) return fail(`初穂料の金額を確かめてください。${who}`);
-    people.push({ no, sei, mei, seiKana, meiKana, gender, special, birth, prayerNames, extras, haraobi, car, parents, fee });
+    const personId = text(p.personId).slice(0, 200);
+    const houseId = text(p.houseId).slice(0, 200);
+    people.push({ no, sei, mei, seiKana, meiKana, gender, special, birth, personId, houseId, prayerNames, extras, haraobi, car, parents, fee });
   }
 
   // 番号の重なり（この入力の中、予約受付の表）。番号のない申込書は調べない
@@ -176,6 +181,9 @@ export const onRequestPost: PagesFunction<AirtableEnv & AccessEnv> = async ({ re
         [F.time]: time ? time.padStart(5, '0') : '',
         [F.method]: '来社',
         名前の特殊文字: p.special,
+        // 登録済みの方を選んだときは、その方の ID を入れておく（「確認・登録」は探し直さずにこの方を使う）
+        既存個人ID: p.personId,
+        既存世帯ID: p.houseId,
         性別: p.gender,
         生年月日: p.birth,
         郵便番号: zip,

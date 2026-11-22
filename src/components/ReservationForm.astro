@@ -121,6 +121,18 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
         <button type="button" class="p-reserve__remove" data-remove>この方を削除</button>
       </legend>
       {paper && (
+      <div class="p-contact-form__row p-reserve__search-row">
+        <div class="p-contact-form__label"><label for="p__i__-search">登録済みの方を探す</label></div>
+        <div class="p-contact-form__field">
+          <input id="p__i__-search" type="search" autocomplete="off" placeholder="姓・名・ふりがなの一部（例：たかみね、太郎）" data-search-input />
+          <p class="p-reserve__help" data-search-status>前にご祈祷を受けた方なら、選ぶとお名前・生年月日・住所などが入ります。初めての方は、下の欄に入れてください。</p>
+          <div class="p-reserve__found" data-search-results hidden></div>
+          <div class="p-reserve__picked" data-picked hidden></div>
+          <div class="p-reserve__family" data-family hidden></div>
+        </div>
+      </div>
+      )}
+      {paper && (
       <div class="p-contact-form__row">
         <div class="p-contact-form__label"><label for="p__i__-no">申込書の番号（No.）</label></div>
         <div class="p-contact-form__field">
@@ -755,6 +767,136 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
     loadSlots();
   }
 
+  // ── 紙の申込書：登録済みの方を探して選ぶ（選ぶと名前・生年月日・住所などが入る） ──
+  type Found = {
+    id: string; name: string; sei: string; mei: string; seiKana: string; meiKana: string; gender: string; birth: string; tel: string;
+    wareki: { era: string; y: number; m: number; d: number } | null;
+    house: { id: string; name: string; company: boolean; zip: string; address: string; building: string; tel: string } | null;
+  };
+  const esc = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+  const birthText = (p: Found) => (p.wareki ? `${p.wareki.era}${p.wareki.y === 1 ? '元' : p.wareki.y}年${p.wareki.m}月${p.wareki.d}日` : '生年月日なし');
+  const describe = (p: Found) => `${p.name || `${p.sei}　${p.mei}`}（${birthText(p)}${p.house ? `・${p.house.address}` : ''}）`;
+  /** 選んだ方の内容を、その方の欄に入れる */
+  const fillPerson = (card: HTMLElement, p: Found) => {
+    const pre = prefixOf(card);
+    const set = (k: string, v: string) => {
+      const el = form.elements.namedItem(`${pre}-${k}`) as HTMLInputElement | HTMLSelectElement | null;
+      if (el) el.value = v;
+    };
+    set('sei', p.sei); set('mei', p.mei); set('sei-kana', p.seiKana); set('mei-kana', p.meiKana);
+    set('era', p.wareki?.era ?? ''); set('y', p.wareki ? String(p.wareki.y) : ''); set('m', p.wareki ? String(p.wareki.m) : ''); set('d', p.wareki ? String(p.wareki.d) : '');
+    card.querySelectorAll<HTMLInputElement>(`input[name="${pre}-gender"]`).forEach((r) => (r.checked = r.value === p.gender));
+    card.dataset.personId = p.name;
+    card.dataset.houseId = p.house && !p.house.company ? p.house.name : '';
+    const picked = card.querySelector<HTMLElement>('[data-picked]')!;
+    picked.innerHTML = `<span>登録済みの方を選びました：<strong>${esc(describe(p))}</strong></span><button type="button" data-unpick>選ぶのをやめる</button>`;
+    picked.hidden = false;
+    card.querySelector<HTMLElement>('[data-search-results]')!.hidden = true;
+  };
+  /** 選んだ方の世帯の住所・電話番号を、ご家族共通の欄に入れる（入っていて違うときは確かめる） */
+  const fillCommon = (p: Found) => {
+    const h = p.house && !p.house.company ? p.house : null;
+    if (!h) return;
+    const tel = h.tel || p.tel;
+    const same = address.value.trim() === h.address && (form.querySelector<HTMLInputElement>('#tel')!.value.trim() === tel || !tel);
+    if (address.value.trim() && !same && !confirm(`住所・電話番号を、選んだ方の世帯の内容に入れ替えますか？\n${h.address}${h.building ? ` ${h.building}` : ''}`)) return;
+    zip.value = h.zip; address.value = h.address;
+    form.querySelector<HTMLInputElement>('#building')!.value = h.building;
+    if (tel) form.querySelector<HTMLInputElement>('#tel')!.value = tel;
+    autoFilled = '';
+    zipCandidates.hidden = true;
+    zipStatus.textContent = '選んだ方の世帯の住所を入れました。転居されている場合は書き直してください。';
+  };
+  /** 同じ世帯の方を出し、チェックした方の欄をまとめて作る */
+  const showFamily = async (card: HTMLElement, p: Found) => {
+    const box = card.querySelector<HTMLElement>('[data-family]')!;
+    box.hidden = true;
+    if (!p.house || p.house.company) return;
+    const res = await fetch(`/api/admin/people?house=${encodeURIComponent(p.house.id)}`, { cache: 'no-store', credentials: 'same-origin' }).catch(() => null);
+    const data = res ? ((await res.json().catch(() => ({}))) as { ok?: boolean; people?: Found[] }) : {};
+    const inForm = new Set([...persons.querySelectorAll<HTMLElement>('[data-person]')].map((c) => c.dataset.personId).filter(Boolean));
+    const others = (data.people ?? []).filter((m) => m.name !== p.name && !inForm.has(m.name));
+    if (!others.length) return;
+    box.innerHTML = `<p class="p-reserve__family-title">同じ世帯の方（${esc(p.house.name)}）：一緒にご祈祷を受ける方にチェックを入れてください</p>`
+      + others.map((m, n) => `<label><input type="checkbox" value="${n}" /> ${esc(describe(m))}</label>`).join('')
+      + '<button type="button" class="p-reserve__add" data-family-add>チェックした方の欄を作る</button>';
+    box.hidden = false;
+    box.querySelector('[data-family-add]')!.addEventListener('click', () => {
+      const chosen = [...box.querySelectorAll<HTMLInputElement>('input:checked')].map((c) => others[Number(c.value)]);
+      for (const m of chosen) {
+        if (persons.querySelectorAll('[data-person]').length >= MAX_PERSONS) break;
+        fillPerson(createPerson(), m);
+      }
+      box.hidden = true;
+      persons.querySelector<HTMLElement>('[data-person]:last-child')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
+  const pick = (card: HTMLElement, p: Found) => {
+    fillPerson(card, p);
+    if (card === persons.querySelector('[data-person]')) fillCommon(p);
+    showFamily(card, p);
+  };
+  const searchTimers = new WeakMap<HTMLElement, number>();
+  const search = async (card: HTMLElement, q: string) => {
+    const box = card.querySelector<HTMLElement>('[data-search-results]')!;
+    const status = card.querySelector<HTMLElement>('[data-search-status]')!;
+    if (!q.trim()) { box.hidden = true; return; }
+    status.textContent = '探しています…';
+    try {
+      const res = await fetch(`/api/admin/people?q=${encodeURIComponent(q)}`, { cache: 'no-store', credentials: 'same-origin' });
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; people?: Found[]; more?: boolean };
+      if (!res.ok || !data.ok) throw new Error(data.error || (res.status === 403 ? 'ログインが切れました。ページを再読み込みしてください。' : `探せませんでした（${res.status}）`));
+      const found = data.people ?? [];
+      status.textContent = found.length
+        ? `${found.length}${data.more ? '件以上' : '件'}見つかりました。あてはまる方を押してください。${data.more ? '多いときは、姓と名の一部を続けて入れて絞ってください。' : ''}`
+        : '見つかりませんでした。初めての方は、下の欄に入れてください。';
+      box.innerHTML = '';
+      found.forEach((p) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = describe(p) + (p.house?.company ? '　※会社・団体' : '');
+        b.addEventListener('click', () => pick(card, p));
+        box.appendChild(b);
+      });
+      box.hidden = !found.length;
+    } catch (err) {
+      status.textContent = (err as Error).message;
+    }
+  };
+  if (paper) {
+    persons.addEventListener('input', (e) => {
+      const el = e.target as HTMLInputElement;
+      const card = el.closest<HTMLElement>('[data-person]');
+      if (!card) return;
+      if (el.matches('[data-search-input]')) {
+        clearTimeout(searchTimers.get(card));
+        searchTimers.set(card, window.setTimeout(() => search(card, el.value), 350));
+        return;
+      }
+      // 選んだあとで名前・ふりがな・生年月日を書き直したら、取り違えを防ぐため、選んだことを取り消す
+      if (card.dataset.personId && el.matches('[name$="-sei"], [name$="-mei"], [name$="-sei-kana"], [name$="-mei-kana"], [name$="-era"], [name$="-y"], [name$="-m"], [name$="-d"]')) {
+        unpick(card, '名前・生年月日を書き直したので、登録済みの方を選んだことを取り消しました（「確認・登録」で探し直します）。');
+      }
+    });
+    persons.addEventListener('change', (e) => {
+      const el = e.target as HTMLElement;
+      const card = el.closest<HTMLElement>('[data-person]');
+      if (card?.dataset.personId && el.matches('[name$="-era"]')) unpick(card, '生年月日を書き直したので、登録済みの方を選んだことを取り消しました。');
+    });
+    persons.addEventListener('click', (e) => {
+      const b = (e.target as HTMLElement).closest('[data-unpick]');
+      if (b) unpick(b.closest<HTMLElement>('[data-person]')!, '');
+    });
+  }
+  function unpick(card: HTMLElement, note: string) {
+    delete card.dataset.personId;
+    delete card.dataset.houseId;
+    const picked = card.querySelector<HTMLElement>('[data-picked]')!;
+    picked.textContent = note;
+    picked.hidden = !note;
+    card.querySelector<HTMLElement>('[data-family]')!.hidden = true;
+  }
+
   /** 紙の申込書：入力をまとめて JSON で送り、終わったら次の申込書を入れられるように空にする */
   const done = document.getElementById('js-paper-done');
   const submitPaper = async () => {
@@ -769,6 +911,7 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
         prayers: [...card.querySelectorAll<HTMLInputElement>(`input[name="${pre}-prayer"]:checked`)].map((c) => c.value),
         other: v('prayer-other'), haraobi: checked(`${pre}-haraobi`), car: v('car'),
         father: v('father'), fatherKana: v('father-kana'), mother: v('mother'), motherKana: v('mother-kana'), fee: v('fee'),
+        personId: card.dataset.personId ?? '', houseId: card.dataset.houseId ?? '',
       };
     });
     const body = {

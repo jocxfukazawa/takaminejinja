@@ -940,3 +940,15 @@ body.is-intro .p-hero__arrow { opacity: 0; }
 .p-reserve__wareki label { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
 .p-contact-form .p-reserve__wareki input[type=text] { width: 4.5em; text-align: right; }
 .p-contact-form input[type=time] { padding: 10px 12px; font: inherit; border: 1px solid #ccc; }
+
+/* 紙の申込書の入力：登録済みの方を探す */
+.p-reserve__search-row { background: #f7f3ea; padding: 12px 12px 4px; margin: 0 -12px 12px; }
+.p-reserve__found { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; max-height: 320px; overflow: auto; }
+.p-reserve__found button { text-align: left; padding: 8px 12px; font: inherit; font-size: 14px; background: #fff; border: 1px solid #ccc; cursor: pointer; }
+.p-reserve__found button:hover { border-color: var(--color-red); }
+.p-reserve__picked { margin-top: 8px; padding: 8px 12px; font-size: 14px; background: #eef8f1; border: 1px solid #0a7a2f; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.p-reserve__picked button { font: inherit; font-size: 13px; padding: 4px 10px; cursor: pointer; }
+.p-reserve__family { margin-top: 8px; padding: 10px 12px; background: #fff; border: 1px dashed #999; font-size: 14px; }
+.p-reserve__family label { display: block; margin: 4px 0; }
+.p-reserve__family-title { margin: 0 0 6px; font-weight: 700; }
+.p-reserve__family .p-reserve__add { margin-top: 8px; }
