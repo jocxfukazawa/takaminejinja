@@ -80,6 +80,7 @@ const prayerColumns = (prayers, width, height, max, lineHeight, spacing) => {
 export function sheetHtml(s, copy) {
   const parts = [];
   // ── 左：受付・祈祷日、備考、No.、初穂料、連絡先 ──
+  // 初穂料の金額は書かない（計算した額は目安で、お納めいただく額とは限らないため。受付で手書きする）
   parts.push(cell(0, 0, 9, 26, '受付・祈祷日', 'v label'));
   // 車名・ナンバーがあるときは、受付・祈祷日と備考の下端に、横書きの欄を作る（高さ 22mm）
   const carH = s.car.length ? 22 : 0;
@@ -99,7 +100,7 @@ export function sheetHtml(s, copy) {
   parts.push(cell(0, 114, 36, 10, '<span style="font-size:2.6mm;font-weight:700;">No.</span>', '', 'padding:2mm 1.5mm;'));
   parts.push(cell(0, 124, 36, 18,
     `<div class="label" style="height:6mm;border-bottom:.15mm solid #111;">初　穂　料</div>
-     <div class="val" style="text-align:right;padding:2mm 3mm 0;font-size:5.5mm;line-height:1.2;">${s.fee ? `${esc(s.fee.toLocaleString('ja-JP'))}<small style="font-size:3.2mm;">円</small>` : ''}</div>
+     <div class="val"></div>
      ${s.card ? '<div class="val" style="position:absolute;left:1.5mm;bottom:.8mm;font-size:2.6mm;">カード払い</div>' : ''}`));
   parts.push(cell(0, 142, 36, 14,
     `<div style="font-size:2.6mm;font-weight:700;padding:1mm 1.5mm;line-height:1.3;">連絡先 TEL</div>
@@ -232,11 +233,11 @@ export function childSheetHtml(s, copy) {
   col('address', addressHtml(s.address, 11.4, BOTTOM - H - 7));
   col('addressKana', '');
 
-  // 左下：No.（紙の申込書の番号の欄なので空けておく）と初穂料
+  // 左下：No.（紙の申込書の番号の欄なので空けておく）と初穂料（金額は書かずに空けておく。受付で手書きする）
   parts.push(cell(0, NOTES_BOTTOM, 23.4, 10, '<span style="font-size:2.6mm;font-weight:700;">No.</span>', '', 'padding:2mm 1.5mm;'));
   parts.push(cell(0, NOTES_BOTTOM + 10, 23.4, BOTTOM - NOTES_BOTTOM - 10,
     `<div class="label" style="height:6mm;border-bottom:.15mm solid #111;">初穂料</div>
-     <div class="val" style="text-align:right;padding:1.8mm 1.5mm 0;font-size:4.6mm;line-height:1.2;">${s.fee ? `${esc(s.fee.toLocaleString('ja-JP'))}<small style="font-size:2.8mm;">円</small>` : ''}</div>
+     <div class="val"></div>
      ${s.card ? '<div class="val" style="position:absolute;left:1.5mm;bottom:.8mm;font-size:2.4mm;">カード払い</div>' : ''}`));
   // いちばん下：連絡先 TEL と 〒
   parts.push(cell(0, BOTTOM, 66, 156 - BOTTOM,
