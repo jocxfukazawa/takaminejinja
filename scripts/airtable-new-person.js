@@ -36,6 +36,11 @@
 
 // ── 設定 ──
 const DRY_RUN = true; // true：作らずに、作る予定だけ出す。false：本当に作る
+// まとめて処理するオートメーション（「まとめて確認・登録」のボタン）に貼るときだけ true にする。
+// true のときは、押した行ではなく、対象の行（下の BATCH_STATUSES・御祈祷日が今日まで・「確認・登録の状態」が空）を予約グループごとに順に処理する
+const BATCH = false;
+const BATCH_STATUSES = ['予約確定', '事前申込'];
+const BATCH_LIMIT_MS = 100_000; // 1回で処理する時間の上限（残りは次に押したときに続きから）
 
 const T_RESERVE = '予約受付';
 const T_PERSON = '個人';
@@ -68,7 +73,9 @@ const H = {
 const SKIP_STATUS = ['キャンセル'];
 
 // ── ここから下は変えない ──
-const { recordId } = input.config();
+const { recordId: clickedId } = input.config();
+let recordId = clickedId; // いま処理している行（まとめて処理するときは、行ごとに変わる）
+let resultIds = []; // 結果を書き込む行（同じ予約グループの全員）
 const reserve = base.getTable(T_RESERVE);
 const person = base.getTable(T_PERSON);
 const house = base.getTable(T_HOUSE);
@@ -76,7 +83,7 @@ const house = base.getTable(T_HOUSE);
 // ── 結果を、押した行に書き込む（インターフェースのその行の画面で読めるように） ──
 const RESULT_FIELD = '確認・登録の結果'; // 長い文字（Long text）
 const STATE_FIELD = '確認・登録の状態'; // 単一選択（完了・要確認・エラー・試し運転）。なくてもよい
-const logs = [];
+let logs = [];
 const log = (m) => { logs.push(String(m)); console.log(m); };
 let state = '';
 const GUIDE = {
@@ -92,10 +99,18 @@ const writeResult = async () => {
   if (names.has(RESULT_FIELD)) fields[RESULT_FIELD] = [`【${state}】${when}`, GUIDE[state] ?? '', '', ...logs].join('\n');
   const sf = reserve.fields.find((f) => f.name === STATE_FIELD);
   if (sf && (sf.options?.choices ?? []).some((c) => c.name === state)) fields[STATE_FIELD] = { name: state };
-  if (Object.keys(fields).length) await reserve.updateRecordAsync(recordId, fields);
+  if (Object.keys(fields).length) {
+    const ids = resultIds.length ? resultIds : [recordId];
+    for (let i = 0; i < ids.length; i += 50) await reserve.updateRecordsAsync(ids.slice(i, i + 50).map((id) => ({ id, fields })));
+  }
   else console.log(`（結果を書き込む「${RESULT_FIELD}」の項目が、予約受付の表にありません）`);
 };
 
+/** 1組（押した行と、同じ予約グループの行）を処理する */
+const runOne = async () => {
+logs = [];
+state = '';
+resultIds = [recordId];
 try {
 
 /** 表にない項目を、まとめて知らせる */
@@ -203,6 +218,7 @@ const groupNo = str(clicked, hasR('group') ? R.group : null);
 const rows = (groupNo ? all.records.filter((r) => str(r, R.group) === groupNo) : [clicked])
   .filter((r) => !SKIP_STATUS.includes(str(r, hasR('status') ? R.status : null)));
 const repRow = rows.find((r) => hasR('rep') && r.getCellValue(R.rep)) ?? rows[0];
+resultIds = rows.map((r) => r.id); // 結果は、同じ予約グループの全員の行に書き込む
 log(`予約グループ：${groupNo || '（なし）'}　${rows.length}名`);
 
 // ── 今ある個人・世帯 ──
@@ -564,6 +580,45 @@ if (blocks.length) {
   else log('→ もう一度押してください。同じエラーが続くときは、この欄の文をそのまま管理者に伝えてください。');
   log('個人・世帯の表は、止まる前に作られた分だけ変わっている可能性があります。作りかけの行がないか確かめてください。');
   try { await writeResult(); } catch (e2) { console.log(`結果を書き込めませんでした：${e2?.message ?? e2}`); }
-  throw e;
+  if (!BATCH) throw e;
+}
+};
+
+if (!BATCH) {
+  await runOne();
+} else {
+  // ── まとめて処理：対象の行を、予約グループごとに順に処理する ──
+  const started = Date.now();
+  const today = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+  const names = new Set(reserve.fields.map((f) => f.name));
+  const want = ['予約ステータス', '御祈祷日', '予約グループ', '代表者', STATE_FIELD].filter((n) => names.has(n));
+  const all = await reserve.selectRecordsAsync({ fields: want });
+  const s = (r, f) => (names.has(f) ? r.getCellValueAsString(f).trim() : '');
+  const dateOf = (r) => {
+    const m = s(r, '御祈祷日').match(/(\d{4})\D(\d{1,2})\D(\d{1,2})/);
+    return m ? `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}` : '';
+  };
+  const targets = all.records.filter((r) => BATCH_STATUSES.includes(s(r, '予約ステータス'))
+    && (!dateOf(r) || dateOf(r) <= today) && !s(r, STATE_FIELD));
+  // 予約グループごとに1行（代表者の行があればその行）
+  const groups = new Map();
+  for (const r of targets.sort((a, b) => (dateOf(a) || '0').localeCompare(dateOf(b) || '0'))) {
+    const g = s(r, '予約グループ') || r.id;
+    if (!groups.has(g) || (names.has('代表者') && r.getCellValue('代表者'))) groups.set(g, r);
+  }
+  const count = { 完了: 0, 要確認: 0, エラー: 0, 試し運転: 0 };
+  let done = 0;
+  for (const r of groups.values()) {
+    if (Date.now() - started > BATCH_LIMIT_MS) break;
+    recordId = r.id;
+    await runOne();
+    count[state] = (count[state] ?? 0) + 1;
+    done++;
+  }
+  const rest = groups.size - done;
+  const summary = `対象 ${groups.size}組のうち ${done}組を処理しました（完了 ${count.完了}・要確認 ${count.要確認}・エラー ${count.エラー}`
+    + `${count.試し運転 ? `・試し運転 ${count.試し運転}` : ''}）。${rest ? `残り ${rest}組は、もう一度ボタンを押すと続きから処理します。` : ''}`;
+  console.log(summary);
+  output.set('result', summary);
 }
 
