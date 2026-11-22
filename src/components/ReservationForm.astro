@@ -8,21 +8,42 @@
  * reception を付けると「当日受付」になる：Airtable の「当日受付の日」の日に、参拝の方がその場で入力する（/reception/）。
  * 日時・メールアドレス・納め方は聞かず、初穂料は計算した金額を入れておき、増やせるようにする。
  * 送信すると受付が確定し、申込書がプリンターから出る
+ *
+ * paper を付けると「紙の申込書の入力」になる（神社の方だけ。/admin/paper/）：社務所で受け付けた紙の祈祷申込書を、
+ * ご家族ぶんまとめて予約受付の表に入れる。住所・電話番号などは1回だけ、申込書の番号・生年月日（和暦）・初穂料は1人ずつ。
  */
 import { PRAYERS, PRAYER_OTHER, PHONE, MAX_PERSONS, ADVANCE_CUTOFF_HOUR } from '../lib/reservation';
 
 interface Props {
   advance?: boolean;
   reception?: boolean;
+  paper?: boolean;
 }
-const { advance = false, reception = false } = Astro.props;
-const mode = reception ? 'reception' : advance ? 'advance' : 'reserve';
+const { advance = false, reception = false, paper = false } = Astro.props;
+const mode = paper ? 'paper' : reception ? 'reception' : advance ? 'advance' : 'reserve';
+const ERAS = ['令和', '平成', '昭和', '大正', '明治'];
 
 // Turnstile のサイトキー（未設定時は Cloudflare 公式のテスト用キー＝常に成功）
 const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x00000000000000000000AA';
 ---
-<form class="p-contact-form p-reserve" id="js-reserve-form" action="/api/reservation" method="post" novalidate data-mode={mode}>
-  {reception ? (
+<form class="p-contact-form p-reserve" id="js-reserve-form" action={paper ? '/api/admin/paper' : '/api/reservation'} method="post" novalidate data-mode={mode}>
+  {paper ? (
+    <>
+      <input type="hidden" name="method" value="来社" />
+      <h2 class="p-reserve__heading">受付・祈祷日</h2>
+      <div class="p-contact-form__row">
+        <div class="p-contact-form__label"><label for="date">御祈祷日</label><span class="p-required">必須</span></div>
+        <div class="p-contact-form__field"><input id="date" name="date" type="date" required class="p-reserve__short" /></div>
+      </div>
+      <div class="p-contact-form__row">
+        <div class="p-contact-form__label"><label for="time">時刻</label></div>
+        <div class="p-contact-form__field">
+          <input id="time" name="time" type="time" step="300" class="p-reserve__short" />
+          <p class="p-reserve__help">申込書に時刻があれば入れてください（なければ空のままで構いません）。</p>
+        </div>
+      </div>
+    </>
+  ) : reception ? (
     <>
       <input type="hidden" name="mode" value="reception" />
       <input type="hidden" name="k" value="" />
@@ -83,8 +104,12 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
   )}
 
   <h2 class="p-reserve__heading">ご祈祷を受けられる方</h2>
+  {paper ? (
+  <p class="p-reserve__help">申込書1枚ごとに、お一人ずつ入れてください。ご家族の分は「＋ 一緒にご祈祷を受ける方を追加」で増やせます（{MAX_PERSONS}名まで）。姓とふりがな（せい）は1人目と同じものが入ります。<br />七五三詣・初宮詣は、お子さまのお名前を入れ、父母のお名前はご祈願を選ぶと出る欄に入れてください。</p>
+  ) : (<>
   <p class="p-reserve__help">ご家族などでご一緒にご祈祷を受けられる場合は、下の「＋ 一緒にご祈祷を受ける方を追加」から、お一人ずつご入力ください（{MAX_PERSONS}名まで）。ご祈願内容は、お一人ずつ（複数でも）お選びいただけます。<br />ご祈祷料は、ご祈願1件につき5千円以上（初宮詣は8千円以上）でお心持ちをお納めいただいております。</p>
   <p class="p-reserve__notice">ここには、<strong>ご祈祷を受けるご本人</strong>のお名前・生年月日をご入力ください。<br /><strong>七五三詣・初宮詣は、お子さまのお名前</strong>です（父母のお名前は、ご祈願内容を選ぶと出る欄にご入力いただきます）。</p>
+  </>)}
 
   <div id="js-persons"></div>
   <p class="p-reserve__add-wrap"><button type="button" class="p-reserve__add" id="js-add-person">＋ 一緒にご祈祷を受ける方を追加</button></p>
@@ -95,6 +120,15 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
         <span data-person-label></span>
         <button type="button" class="p-reserve__remove" data-remove>この方を削除</button>
       </legend>
+      {paper && (
+      <div class="p-contact-form__row">
+        <div class="p-contact-form__label"><label for="p__i__-no">申込書の番号（No.）</label><span class="p-required">必須</span></div>
+        <div class="p-contact-form__field">
+          <input id="p__i__-no" name="p__i__-no" type="text" inputmode="numeric" maxlength="20" required class="p-reserve__short" />
+          <p class="p-reserve__help">紙の申込書の右上の番号です。予約受付の「予約番号」に入ります。</p>
+        </div>
+      </div>
+      )}
       <div class="p-contact-form__row">
         <div class="p-contact-form__label">お名前<span class="p-required">必須</span></div>
         <div class="p-contact-form__field p-reserve__pair">
@@ -103,10 +137,10 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
         </div>
       </div>
       <div class="p-contact-form__row">
-        <div class="p-contact-form__label">ふりがな<span class="p-required">必須</span></div>
+        <div class="p-contact-form__label">ふりがな{!paper && <span class="p-required">必須</span>}</div>
         <div class="p-contact-form__field p-reserve__pair">
-          <label><span>せい</span><input name="p__i__-sei-kana" type="text" maxlength="50" required /></label>
-          <label><span>めい</span><input name="p__i__-mei-kana" type="text" maxlength="50" required /></label>
+          <label><span>せい</span><input name="p__i__-sei-kana" type="text" maxlength="50" required={!paper} /></label>
+          <label><span>めい</span><input name="p__i__-mei-kana" type="text" maxlength="50" required={!paper} /></label>
         </div>
       </div>
       <div class="p-contact-form__row">
@@ -117,13 +151,30 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
         </div>
       </div>
       <div class="p-contact-form__row">
-        <div class="p-contact-form__label" id="p__i__-gender-label">性別<span class="p-required">必須</span></div>
+        <div class="p-contact-form__label" id="p__i__-gender-label">性別{!paper && <span class="p-required">必須</span>}</div>
         <div class="p-contact-form__field p-reserve__choices p-reserve__choices--inline" role="radiogroup" aria-labelledby="p__i__-gender-label">
-          <label><input type="radio" name="p__i__-gender" value="男" required /> 男</label>
+          <label><input type="radio" name="p__i__-gender" value="男" required={!paper} /> 男</label>
           <label><input type="radio" name="p__i__-gender" value="女" /> 女</label>
           <label><input type="radio" name="p__i__-gender" value="回答しない" /> 回答しない</label>
         </div>
       </div>
+      {paper ? (
+      <div class="p-contact-form__row">
+        <div class="p-contact-form__label"><label for="p__i__-era">生年月日（和暦）</label></div>
+        <div class="p-contact-form__field">
+          <div class="p-reserve__wareki">
+            <select id="p__i__-era" name="p__i__-era" aria-label="元号">
+              <option value="">元号</option>
+              {ERAS.map((e) => <option value={e}>{e}</option>)}
+            </select>
+            <label><input name="p__i__-y" type="text" inputmode="numeric" maxlength="2" aria-label="年" /> 年</label>
+            <label><input name="p__i__-m" type="text" inputmode="numeric" maxlength="2" aria-label="月" /> 月</label>
+            <label><input name="p__i__-d" type="text" inputmode="numeric" maxlength="2" aria-label="日" /> 日</label>
+          </div>
+          <p class="p-reserve__help">申込書のとおり和暦で入れてください（元年は「1」）。分からなければ空のままで構いません。</p>
+        </div>
+      </div>
+      ) : (
       <div class="p-contact-form__row">
         <div class="p-contact-form__label"><label for="p__i__-birthday">生年月日</label><span class="p-required">必須</span></div>
         <div class="p-contact-form__field">
@@ -136,6 +187,7 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
           )}
         </div>
       </div>
+      )}
       <div class="p-contact-form__row">
         <div class="p-contact-form__label" id="p__i__-prayer-label">ご祈願内容<span class="p-required">必須</span></div>
         <div class="p-contact-form__field">
@@ -180,11 +232,20 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
           <textarea id="p__i__-car" name="p__i__-car" rows="2" maxlength="500" data-required placeholder={'トヨタ　プリウス\n姫路300 あ 11-11'}></textarea>
         </div>
       </div>
+      {paper && (
+      <div class="p-contact-form__row">
+        <div class="p-contact-form__label"><label for="p__i__-fee">初穂料</label></div>
+        <div class="p-contact-form__field">
+          <p class="p-reserve__fee-input"><input id="p__i__-fee" name="p__i__-fee" type="text" inputmode="numeric" maxlength="9" class="p-reserve__short" /> 円</p>
+          <p class="p-reserve__help">申込書に書いた初穂料です。予約受付の「初穂料」に入り、台帳の金額になります。</p>
+        </div>
+      </div>
+      )}
     </fieldset>
   </template>
 
-  <h2 class="p-reserve__heading">ご連絡先</h2>
-  <p class="p-reserve__help">お子さまのご祈祷の場合は、保護者の方のお電話番号・メールアドレスをご入力ください。</p>
+  <h2 class="p-reserve__heading">{paper ? '住所・連絡先（ご家族で共通）' : 'ご連絡先'}</h2>
+  {!paper && <p class="p-reserve__help">お子さまのご祈祷の場合は、保護者の方のお電話番号・メールアドレスをご入力ください。</p>}
 
   <div class="p-contact-form__row">
     <div class="p-contact-form__label"><label for="zip">郵便番号</label></div>
@@ -203,22 +264,22 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
     <div class="p-contact-form__field"><input id="building" name="building" type="text" maxlength="200" /></div>
   </div>
   <div class="p-contact-form__row">
-    <div class="p-contact-form__label"><label for="tel">電話番号</label><span class="p-required">必須</span></div>
+    <div class="p-contact-form__label"><label for="tel">電話番号</label>{!paper && <span class="p-required">必須</span>}</div>
     <div class="p-contact-form__field">
-      <input id="tel" name="tel" type="tel" maxlength="15" required autocomplete="tel" class="p-reserve__short" />
-      <p class="p-reserve__help">当日に連絡のつく電話番号をご記入ください。</p>
+      <input id="tel" name="tel" type="tel" maxlength="15" required={!paper} autocomplete="tel" class="p-reserve__short" />
+      {!paper && <p class="p-reserve__help">当日に連絡のつく電話番号をご記入ください。</p>}
     </div>
   </div>
-  {!reception && (
+  {!reception && !paper && (
   <div class="p-contact-form__row">
     <div class="p-contact-form__label"><label for="email">メールアドレス</label><span class="p-required">必須</span></div>
     <div class="p-contact-form__field"><input id="email" name="email" type="email" maxlength="200" required autocomplete="email" /></div>
   </div>
   )}
 
-  <h2 class="p-reserve__heading">初穂料・連絡事項</h2>
+  <h2 class="p-reserve__heading">{paper ? '備考' : '初穂料・連絡事項'}</h2>
 
-  {reception ? (
+  {paper ? null : reception ? (
   <div class="p-contact-form__row">
     <div class="p-contact-form__label"><label for="fee-total">初穂料</label><span class="p-required">必須</span></div>
     <div class="p-contact-form__field">
@@ -241,19 +302,23 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
   </div>
   )}
   <div class="p-contact-form__row">
-    <div class="p-contact-form__label"><label for="message">連絡事項</label><span class="p-required" id="js-message-required" hidden>必須</span></div>
+    <div class="p-contact-form__label"><label for="message">{paper ? '備考・連絡事項' : '連絡事項'}</label><span class="p-required" id="js-message-required" hidden>必須</span></div>
     <div class="p-contact-form__field">
-      <textarea id="message" name="message" rows="5" maxlength="2000"></textarea>
-      <p class="p-reserve__help" id="js-message-help">ご要望などがあればご記入ください。</p>
+      <textarea id="message" name="message" rows={paper ? 3 : 5} maxlength="2000"></textarea>
+      <p class="p-reserve__help" id="js-message-help">{paper ? '申込書の備考などがあれば入れてください（1人目の行の「連絡事項」に入ります）。' : 'ご要望などがあればご記入ください。'}</p>
     </div>
   </div>
 
+  {!paper && (<>
   <!-- スパム対策（人には見えない項目） -->
   <div class="u-visually-hidden" aria-hidden="true">
     <label>空欄のままにしてください <input type="text" name="website" tabindex="-1" autocomplete="off" /></label>
   </div>
   <div class="cf-turnstile" data-sitekey={siteKey} data-language="ja"></div>
-  {reception ? (
+  </>)}
+  {paper ? (
+    <p class="p-contact-form__note">※ 「予約受付に登録する」を押すと、1人1行で予約受付の表に入ります（受付経路「窓口」、予約ステータス「予約確定」）。<br />※ そのあと、予約受付の画面で「確認・登録」を押してください。</p>
+  ) : reception ? (
     <p class="p-contact-form__note">※ 「申し込む」を押すと受付が確定し、社務所で申込書が印刷されます。<br />※ 次の画面に出る受付番号を、受付でお伝えください。</p>
   ) : advance ? (
     <p class="p-contact-form__note">※ 送信後、ご入力のメールアドレスに「申込番号」の入ったメールが届きます。当日は、受付で申込番号をお伝えください。<br />※ メールが届かない場合は、迷惑メールのフォルダもご確認ください。</p>
@@ -261,7 +326,7 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
     <p class="p-contact-form__note">※ 送信の時点では仮予約です。神社で確認のうえ、ご予約確定のメールをお送りします。<br />※ 送信後、ご入力のメールアドレスに受付のメールが届きます。届かない場合は、迷惑メールのフォルダもご確認ください。</p>
   )}
   <p class="p-contact-form__error" id="js-form-error" role="alert" hidden></p>
-  <p class="p-contact-form__submit"><button type="submit" class="p-btn">{reception ? '申し込む' : advance ? '事前申し込みを送信する' : '仮予約を送信する'}</button></p>
+  <p class="p-contact-form__submit"><button type="submit" class="p-btn">{paper ? '予約受付に登録する' : reception ? '申し込む' : advance ? '事前申し込みを送信する' : '仮予約を送信する'}</button></p>
 </form>
 
 <script>
@@ -274,9 +339,11 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
   const advance = form.dataset.mode === 'advance';
   /** 当日受付（その場で受付が確定する） */
   const reception = form.dataset.mode === 'reception';
+  /** 紙の申込書の入力（神社の方だけ） */
+  const paper = form.dataset.mode === 'paper';
   /** 当日受付で、今日が黒星祈願祭の日か（黒星・厄年の目安を出す） */
   let kuroboshiDay = false;
-  const submitLabel = reception ? '申し込む' : advance ? '事前申し込みを送信する' : '仮予約を送信する';
+  const submitLabel = paper ? '予約受付に登録する' : reception ? '申し込む' : advance ? '事前申し込みを送信する' : '仮予約を送信する';
   const dateSelect = form.querySelector<HTMLSelectElement>('#date')!;
   const times = document.getElementById('js-times');
   const slotsError = document.getElementById('js-slots-error');
@@ -291,7 +358,7 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
 
   /** 選ばれているご祈祷方法（事前申し込みは来社だけ） */
   const methodValue = () =>
-    advance || reception ? '来社' : form.querySelector<HTMLInputElement>('input[name=method]:checked')?.value ?? '';
+    advance || reception || paper ? '来社' : form.querySelector<HTMLInputElement>('input[name=method]:checked')?.value ?? '';
 
   /** ご祈祷方法に合わせて、日時の欄と「当日ご社頭でお納め」を出し入れする */
   const toggleVisit = () => {
@@ -487,7 +554,7 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
   };
 
   const loadSlots = async () => {
-    if (advance || reception || !slotsError) return;
+    if (advance || reception || paper || !slotsError) return;
     const keep = dateSelect.value;
     dateSelect.disabled = true;
     slotsError.hidden = true;
@@ -672,6 +739,9 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
         })
         .catch(() => closed('受付の様子を確かめられませんでした。ページを再読み込みしていただくか、社務所の受付でお申し込みください。'));
     }
+  } else if (paper) {
+    // 紙の申込書：御祈祷日は今日を入れておく（日本時間）
+    dateSelect.value = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
   } else if (advance) {
     // 事前申し込み：締め切り前の日だけを選べるようにする（締め切りは送信の時にもう一度確かめる）
     const open = advanceDates();
@@ -684,6 +754,68 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
   } else {
     loadSlots();
   }
+
+  /** 紙の申込書：入力をまとめて JSON で送り、終わったら次の申込書を入れられるように空にする */
+  const done = document.getElementById('js-paper-done');
+  const submitPaper = async () => {
+    const val = (name: string) => (form.elements.namedItem(name) as HTMLInputElement | null)?.value ?? '';
+    const checked = (name: string) => form.querySelector<HTMLInputElement>(`input[name="${name}"]:checked`)?.value ?? '';
+    const people = [...persons.querySelectorAll<HTMLElement>('[data-person]')].map((card) => {
+      const pre = prefixOf(card);
+      const v = (k: string) => val(`${pre}-${k}`);
+      return {
+        no: v('no'), sei: v('sei'), mei: v('mei'), seiKana: v('sei-kana'), meiKana: v('mei-kana'), special: v('special'),
+        gender: checked(`${pre}-gender`), era: v('era'), y: v('y'), m: v('m'), d: v('d'),
+        prayers: [...card.querySelectorAll<HTMLInputElement>(`input[name="${pre}-prayer"]:checked`)].map((c) => c.value),
+        other: v('prayer-other'), haraobi: checked(`${pre}-haraobi`), car: v('car'),
+        father: v('father'), fatherKana: v('father-kana'), mother: v('mother'), motherKana: v('mother-kana'), fee: v('fee'),
+      };
+    });
+    const body = {
+      date: val('date'), time: val('time'), zip: val('zip'), address: val('address'), building: val('building'),
+      tel: val('tel'), message: val('message'), people,
+    };
+    try {
+      const res = await fetch(form.action, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), credentials: 'same-origin',
+      });
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; numbers?: string[]; names?: string[]; warning?: string };
+      if (!res.ok || !data.ok) {
+        showError(data.error || (res.status === 403 ? 'ログインが切れました。ページを再読み込みして、ログインし直してください。' : `登録できませんでした（${res.status}）。`));
+        return;
+      }
+      // 登録できた：何を入れたかを上に出し、次の申込書のために空にする（御祈祷日と時刻は残す）
+      if (done) {
+        const list = (data.numbers ?? []).map((no, n) => `${no}　${data.names?.[n] ?? ''}`).join('、');
+        done.innerHTML = '';
+        const strong = document.createElement('strong');
+        strong.textContent = `予約受付に${data.numbers?.length ?? 0}名を登録しました：${list}`;
+        done.appendChild(strong);
+        const next = document.createElement('span');
+        next.textContent = '予約受付の画面で、1人目の行の「確認・登録」を押してください。続けて次の申込書を入れられます。';
+        done.appendChild(next);
+        if (data.warning) {
+          const w = document.createElement('span');
+          w.className = 'is-warning';
+          w.textContent = data.warning;
+          done.appendChild(w);
+        }
+        done.hidden = false;
+      }
+      persons.innerHTML = '';
+      createPerson();
+      for (const id of ['zip', 'address', 'building', 'tel', 'message']) {
+        const el = form.querySelector<HTMLInputElement | HTMLTextAreaElement>(`#${id}`);
+        if (el) el.value = '';
+      }
+      autoFilled = '';
+      zipStatus.textContent = ZIP_HELP;
+      zipCandidates.hidden = true;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch {
+      showError('通信エラーが発生しました。もう一度押してください。');
+    }
+  };
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -739,6 +871,12 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
 
     button.disabled = true;
     button.textContent = '送信中…';
+    if (paper) {
+      await submitPaper();
+      button.disabled = false;
+      button.textContent = submitLabel;
+      return;
+    }
     try {
       const res = await fetch(form.action, { method: 'POST', body: new FormData(form) });
       const data = (await res.json().catch(() => ({}))) as {

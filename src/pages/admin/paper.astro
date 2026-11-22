@@ -1,0 +1,39 @@
+---
+/**
+ * 紙の祈祷申込書の入力（神社の方だけ。Cloudflare Access のログインが必要）
+ *
+ * 社務所で受け付けた紙の祈祷申込書（祈祷申込書・七五三詣・初宮詣）を、ご家族ぶんまとめて予約受付の表に入れる。
+ * 画面の作りは Web の予約フォームと同じ（src/components/ReservationForm.astro の paper）。
+ * 住所・電話番号・御祈祷日は1回だけ、申込書の番号・お名前・生年月日（和暦）・ご祈願・初穂料は1人ずつ入れる。
+ * 書き込みは /api/admin/paper。入れたあとは、Airtable の予約受付の画面で「確認・登録」を押す。
+ */
+import '../../styles/global.css';
+import ReservationForm from '../../components/ReservationForm.astro';
+---
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>紙の祈祷申込書の入力 - 高嶺神社</title>
+  <style is:global>
+    body { background: #f4f4f4; }
+    .p-paper { max-width: 860px; margin: 0 auto; padding: 24px 20px 80px; background: #fff; }
+    .p-paper h1 { margin: 0 0 6px; font-size: 22px; }
+    .p-paper__lead { margin: 0 0 18px; font-size: 14px; color: #555; }
+    .p-paper__done { margin: 0 0 20px; padding: 14px 16px; border: 1px solid #0a7a2f; background: #eef8f1; font-size: 15px; }
+    .p-paper__done strong, .p-paper__done span { display: block; }
+    .p-paper__done span { margin-top: 4px; font-size: 14px; }
+    .p-paper__done .is-warning { color: #b00; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <main class="p-paper">
+    <h1>紙の祈祷申込書の入力</h1>
+    <p class="p-paper__lead">ご家族の申込書は、まとめて1回で入れられます。住所・電話番号などは1回だけ、申込書ごとの項目は1人ずつ入れてください。</p>
+    <p class="p-paper__done" id="js-paper-done" role="status" hidden></p>
+    <ReservationForm paper />
+  </main>
+</body>
+</html>

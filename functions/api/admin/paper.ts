@@ -13,7 +13,7 @@
  */
 
 import { accessUser, type AccessEnv } from '../../../src/lib/access';
-import { AirtableError, F, createRecords, isConfigured, recordsWithNumbers, type AirtableEnv } from '../../../src/lib/airtable';
+import { AirtableError, F, createRecords, isConfigured, listRows, type AirtableEnv } from '../../../src/lib/airtable';
 import { MAX_PERSONS, PRAYERS, PRAYER_OTHER, storedDate, type Extra } from '../../../src/lib/reservation';
 
 const json = (body: unknown, status = 200) =>
@@ -50,7 +50,7 @@ export function warekiToKey(era: string, y: number, m: number, d: number): strin
 }
 
 interface PersonIn {
-  no?: string; sei?: string; mei?: string; seiKana?: string; meiKana?: string; gender?: string;
+  no?: string; special?: string; sei?: string; mei?: string; seiKana?: string; meiKana?: string; gender?: string;
   era?: string; y?: string | number; m?: string | number; d?: string | number;
   prayers?: string[]; other?: string; haraobi?: string; car?: string;
   father?: string; fatherKana?: string; mother?: string; motherKana?: string; fee?: string | number;
@@ -94,6 +94,7 @@ export const onRequestPost: PagesFunction<AirtableEnv & AccessEnv> = async ({ re
     const seiKana = text(p.seiKana).replace(/[\s　]+/g, '');
     const meiKana = text(p.meiKana).replace(/[\s　]+/g, '');
     const gender = clean(p.gender);
+    const special = text(p.special);
     if (!no) return fail(`申込書の番号（No.）を入れてください。${who}`);
     if (/^W/i.test(no)) return fail(`申込書の番号に「W」は使えません（Web の予約の番号と区別するため）。${who}`);
     if (!sei) return fail(`お名前（姓）を入れてください。${who}`);
@@ -130,7 +131,7 @@ export const onRequestPost: PagesFunction<AirtableEnv & AccessEnv> = async ({ re
     const feeText = clean(p.fee).replace(/[^0-9]/g, '');
     const fee = feeText ? Number(feeText) : 0;
     if (fee > 10_000_000) return fail(`初穂料の金額を確かめてください。${who}`);
-    people.push({ no, sei, mei, seiKana, meiKana, gender, birth, prayerNames, extras, haraobi, car, parents, fee });
+    people.push({ no, sei, mei, seiKana, meiKana, gender, special, birth, prayerNames, extras, haraobi, car, parents, fee });
   }
 
   // 番号の重なり（この入力の中、予約受付の表）
@@ -138,9 +139,17 @@ export const onRequestPost: PagesFunction<AirtableEnv & AccessEnv> = async ({ re
   const dup = numbers.find((no, i) => numbers.indexOf(no) !== i);
   if (dup) return fail(`申込書の番号「${dup}」が2回入っています。`);
   try {
-    const exists = await recordsWithNumbers(env, numbers);
-    if (exists.length) {
-      const nos = [...new Set(exists.map((r) => String(r.fields['予約番号'])))].join('、');
+    // 紙の番号は年ごとに1から始まることがあるので、御祈祷日が1年以内の行だけを「同じ申込書」とみなす
+    const formula = `OR(${numbers.map((n) => `{予約番号} = '${n.replace(/'/g, '')}'`).join(', ')})`;
+    const found = await listRows(env, { filterByFormula: formula, 'fields[]': ['予約番号', F.date] });
+    const near = found.filter((r) => {
+      const m = String(r.fields[F.date] ?? '').match(/(\d{4})\D(\d{1,2})\D(\d{1,2})/);
+      if (!m) return true;
+      const days = Math.abs(Date.UTC(+m[1], +m[2] - 1, +m[3]) - Date.parse(`${date}T00:00:00Z`)) / 86_400_000;
+      return days < 365;
+    });
+    if (near.length) {
+      const nos = [...new Set(near.map((r) => String(r.fields['予約番号'])))].join('、');
       return fail(`申込書の番号「${nos}」は、すでに予約受付の表にあります。同じ申込書を二度入れていないか確かめてください。`, 409);
     }
   } catch (e) {
@@ -162,6 +171,7 @@ export const onRequestPost: PagesFunction<AirtableEnv & AccessEnv> = async ({ re
         [F.date]: storedDate(date),
         [F.time]: time ? time.padStart(5, '0') : '',
         [F.method]: '来社',
+        名前の特殊文字: p.special,
         性別: p.gender,
         生年月日: p.birth,
         郵便番号: zip,

@@ -933,3 +933,10 @@ body.is-intro .p-hero__arrow { opacity: 0; }
 .p-intro--clear { background: rgba(0, 20, 43, .32); transition: opacity .9s ease; }
 .p-intro--clear .p-intro__canvas { display: none; }
 .p-intro--clear.is-gone { opacity: 0; }
+
+/* 紙の申込書の入力：生年月日（和暦） */
+.p-reserve__wareki { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.p-contact-form .p-reserve__wareki select { width: auto; min-width: 7em; }
+.p-reserve__wareki label { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.p-contact-form .p-reserve__wareki input[type=text] { width: 4.5em; text-align: right; }
+.p-contact-form input[type=time] { padding: 10px 12px; font: inherit; border: 1px solid #ccc; }
