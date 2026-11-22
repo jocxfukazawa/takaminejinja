@@ -77,10 +77,11 @@ const prayerColumns = (prayers, width, height, max, lineHeight, spacing) => {
   return { size: '1.8', columns: prayers };
 };
 
-/** 初穂料の欄の中身：右端にいつも「円」。金額があれば（カード払いの方）その左に書く */
-const feeHtml = (fee: number, size: number, yenSize: number, padding: string) =>
-  `<div class="val" style="display:flex;justify-content:flex-end;align-items:baseline;gap:.6mm;padding:${padding};font-size:${size}mm;line-height:1.2;">`
-  + `<span>${fee > 0 ? esc(fee.toLocaleString('ja-JP')) : ''}</span><small style="font-size:${yenSize}mm;">円</small></div>`;
+/** 初穂料の欄の中身：右下にいつも「円」。金額があれば（カード払いの方）その左に書く。カード払いは左上に小さく */
+const feeHtml = (fee: number, card: boolean, size: number, yenSize: number, cardSize: number) =>
+  `<div class="val" style="position:absolute;right:1.5mm;bottom:1mm;display:flex;align-items:baseline;gap:.6mm;font-size:${size}mm;line-height:1;">`
+  + `<span>${fee > 0 ? esc(fee.toLocaleString('ja-JP')) : ''}</span><small style="font-size:${yenSize}mm;">円</small></div>`
+  + (card ? `<div class="val" style="position:absolute;left:1.5mm;top:7mm;font-size:${cardSize}mm;line-height:1;">カード払い</div>` : '');
 
 export function sheetHtml(s, copy) {
   const parts = [];
@@ -105,8 +106,7 @@ export function sheetHtml(s, copy) {
   parts.push(cell(0, 114, 36, 10, '<span style="font-size:2.6mm;font-weight:700;">No.</span>', '', 'padding:2mm 1.5mm;'));
   parts.push(cell(0, 124, 36, 18,
     `<div class="label" style="height:6mm;border-bottom:.15mm solid #111;">初　穂　料</div>
-     ${feeHtml(s.fee, 5.5, 3.2, '2mm 2mm 0 1.5mm')}
-     ${s.card ? '<div class="val" style="position:absolute;left:1.5mm;bottom:.8mm;font-size:2.6mm;">カード払い</div>' : ''}`));
+     ${feeHtml(s.fee, s.card, 5.5, 3.2, 2.6)}`));
   parts.push(cell(0, 142, 36, 14,
     `<div style="font-size:2.6mm;font-weight:700;padding:1mm 1.5mm;line-height:1.3;">連絡先 TEL</div>
      <div class="val" style="font-size:4mm;padding:1mm 1.5mm;line-height:1.3;">${esc(s.tel)}</div>`));
@@ -242,8 +242,7 @@ export function childSheetHtml(s, copy) {
   parts.push(cell(0, NOTES_BOTTOM, 23.4, 10, '<span style="font-size:2.6mm;font-weight:700;">No.</span>', '', 'padding:2mm 1.5mm;'));
   parts.push(cell(0, NOTES_BOTTOM + 10, 23.4, BOTTOM - NOTES_BOTTOM - 10,
     `<div class="label" style="height:6mm;border-bottom:.15mm solid #111;">初穂料</div>
-     ${feeHtml(s.fee, 4.6, 2.8, '1.8mm 1.5mm 0 1mm')}
-     ${s.card ? '<div class="val" style="position:absolute;left:1.5mm;bottom:.8mm;font-size:2.4mm;">カード払い</div>' : ''}`));
+     ${feeHtml(s.fee, s.card, 4.6, 2.8, 2.4)}`));
   // いちばん下：連絡先 TEL と 〒
   parts.push(cell(0, BOTTOM, 66, 156 - BOTTOM,
     `<span style="font-size:2.6mm;font-weight:700;">連絡先 TEL</span>　<span class="val" style="font-size:4mm;">${esc(s.tel)}</span>`, '', 'padding:3mm 2mm;'));
