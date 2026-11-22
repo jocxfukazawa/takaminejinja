@@ -111,7 +111,8 @@ export const onRequestPost: PagesFunction<AirtableEnv & AccessEnv> = async ({ re
       birth = key.replace(/-/g, '/');
     }
     // ご祈願（複数）
-    const chosen = [...new Set((p.prayers ?? []).map(clean).filter(Boolean))];
+    // ご祈願の名前は全角のかっこを含むので、全角・半角をそろえずに（前後の空白だけ取って）比べる
+    const chosen = [...new Set((p.prayers ?? []).map(text).filter(Boolean))];
     if (!chosen.length) return fail(`ご祈願を選んでください。${who}`);
     if (chosen.some((c) => c !== PRAYER_OTHER && !PRAYERS.some((x) => x.name === c))) return fail(`ご祈願を選び直してください。${who}`);
     const other = text(p.other);
