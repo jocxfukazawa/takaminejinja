@@ -77,10 +77,16 @@ const prayerColumns = (prayers, width, height, max, lineHeight, spacing) => {
   return { size: '1.8', columns: prayers };
 };
 
+/** 初穂料の欄の中身：右下にいつも「円」。金額があれば（カード払いの方）その左に書く。カード払いは左上に小さく */
+const feeHtml = (fee: number, card: boolean, size: number, yenSize: number, cardSize: number) =>
+  `<div class="val" style="position:absolute;right:1.5mm;bottom:1mm;display:flex;align-items:baseline;gap:.6mm;font-size:${size}mm;line-height:1;">`
+  + `<span>${fee > 0 ? esc(fee.toLocaleString('ja-JP')) : ''}</span><small style="font-size:${yenSize}mm;">円</small></div>`
+  + (card ? `<div class="val" style="position:absolute;left:1.5mm;top:7mm;font-size:${cardSize}mm;line-height:1;">カード払い</div>` : '');
+
 export function sheetHtml(s, copy) {
   const parts = [];
   // ── 左：受付・祈祷日、備考、No.、初穂料、連絡先 ──
-  // 初穂料の金額は書かない（計算した額は目安で、お納めいただく額とは限らないため。受付で手書きする）
+  // 初穂料の金額は、カード払いの方だけ書く（予約受付の「初穂料」の額）。ほかは空けて「円」だけ書き、受付で手書きする
   parts.push(cell(0, 0, 9, 26, '受付・祈祷日', 'v label'));
   // 車名・ナンバーがあるときは、受付・祈祷日と備考の下端に、横書きの欄を作る（高さ 22mm）
   const carH = s.car.length ? 22 : 0;
@@ -100,8 +106,7 @@ export function sheetHtml(s, copy) {
   parts.push(cell(0, 114, 36, 10, '<span style="font-size:2.6mm;font-weight:700;">No.</span>', '', 'padding:2mm 1.5mm;'));
   parts.push(cell(0, 124, 36, 18,
     `<div class="label" style="height:6mm;border-bottom:.15mm solid #111;">初　穂　料</div>
-     <div class="val"></div>
-     ${s.card ? '<div class="val" style="position:absolute;left:1.5mm;bottom:.8mm;font-size:2.6mm;">カード払い</div>' : ''}`));
+     ${feeHtml(s.fee, s.card, 5.5, 3.2, 2.6)}`));
   parts.push(cell(0, 142, 36, 14,
     `<div style="font-size:2.6mm;font-weight:700;padding:1mm 1.5mm;line-height:1.3;">連絡先 TEL</div>
      <div class="val" style="font-size:4mm;padding:1mm 1.5mm;line-height:1.3;">${esc(s.tel)}</div>`));
@@ -233,12 +238,11 @@ export function childSheetHtml(s, copy) {
   col('address', addressHtml(s.address, 11.4, BOTTOM - H - 7));
   col('addressKana', '');
 
-  // 左下：No.（紙の申込書の番号の欄なので空けておく）と初穂料（金額は書かずに空けておく。受付で手書きする）
+  // 左下：No.（紙の申込書の番号の欄なので空けておく）と初穂料（カード払いの方だけ金額。ほかは「円」だけ）
   parts.push(cell(0, NOTES_BOTTOM, 23.4, 10, '<span style="font-size:2.6mm;font-weight:700;">No.</span>', '', 'padding:2mm 1.5mm;'));
   parts.push(cell(0, NOTES_BOTTOM + 10, 23.4, BOTTOM - NOTES_BOTTOM - 10,
     `<div class="label" style="height:6mm;border-bottom:.15mm solid #111;">初穂料</div>
-     <div class="val"></div>
-     ${s.card ? '<div class="val" style="position:absolute;left:1.5mm;bottom:.8mm;font-size:2.4mm;">カード払い</div>' : ''}`));
+     ${feeHtml(s.fee, s.card, 4.6, 2.8, 2.4)}`));
   // いちばん下：連絡先 TEL と 〒
   parts.push(cell(0, BOTTOM, 66, 156 - BOTTOM,
     `<span style="font-size:2.6mm;font-weight:700;">連絡先 TEL</span>　<span class="val" style="font-size:4mm;">${esc(s.tel)}</span>`, '', 'padding:3mm 2mm;'));

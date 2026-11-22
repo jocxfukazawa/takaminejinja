@@ -23,7 +23,7 @@ const json = (body: unknown, status = 200) =>
 const FIELDS = [
   '予約番号', '予約グループ', '代表者', '予約ステータス', '受付経路', '御祈祷日', '御祈祷時刻', '祈祷方法',
   '名前', 'ふりがな', '名前の特殊文字', '性別', '生年月日', '郵便番号', '住所', '建物名等', '電話番号',
-  '御祈祷内容', '父母の名前', '腹帯のお祓い', '車名・ナンバー', '納入方法', '予約の初穂料合計',
+  '御祈祷内容', '父母の名前', '腹帯のお祓い', '車名・ナンバー', '納入方法', '予約の初穂料合計', '初穂料',
 ];
 
 export const onRequestGet: PagesFunction<AirtableEnv & AccessEnv> = async ({ request, env }) => {
@@ -58,6 +58,15 @@ export const onRequestGet: PagesFunction<AirtableEnv & AccessEnv> = async ({ req
     // 七五三詣・初宮詣は別の形の申込書（ごきょうだいの初穂料は、年上の方の1枚にまとめて書く）
     const children = childFees(rows.flatMap(toChildSheets));
     addReceptionExtra(rows, [...sheets, ...children]);
+    // 申込書の初穂料の欄：カード払いの方だけ、予約受付の「初穂料」の額を書く（同じ方の申込書が2枚になるときは1枚目だけ）。
+    // ほかの方は、計算した額は目安でお納めいただく額とは限らないので、空けておく（受付で手書きする）
+    const paid = new Map(rows.map((r) => [String(r.fields['予約番号'] ?? ''), Number(r.fields['初穂料']) || 0]));
+    const written = new Set<string>();
+    for (const s of [...sheets, ...children]) {
+      const fee = s.card && !written.has(s.no) ? paid.get(s.no) ?? 0 : 0;
+      if (fee) written.add(s.no);
+      s.fee = fee;
+    }
     return json({ ok: true, sheets, children });
   } catch (e) {
     console.error('admin/sheets: Airtable の読み込みに失敗', e);
