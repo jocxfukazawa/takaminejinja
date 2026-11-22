@@ -170,6 +170,39 @@ export const onRequestPost: PagesFunction<AirtableEnv & AccessEnv> = async ({ re
     return fail('Airtable を読み込めませんでした。少し待ってから、もう一度押してください。', 502);
   }
 
+  // ── 同じ御祈祷日に、同じ名前（または同じ方）の行がすでにないか（電話の予約などを重ねて入れないように） ──
+  // 見つかったら書き込まずに知らせる。画面で確かめて「重ねて登録する」を選ぶと、confirmDuplicate を付けて送り直してくる
+  if (body.confirmDuplicate !== true) {
+    try {
+      const day = date.replace(/-/g, '/');
+      const filterByFormula = `AND(LEFT({${F.date}}, 10) = '${day}', {${F.status}} != 'キャンセル')`;
+      const base = ['予約番号', '名前', '受付経路', F.status, '既存個人ID'];
+      // 「既存個人レコードID」の項目がない表でも動くよう、なければ外して読み直す
+      const sameDay = await listRows(env, { filterByFormula, 'fields[]': [...base, '既存個人レコードID'] }).catch((e) => {
+        if (e instanceof AirtableError && /レコードID/.test(e.message)) return listRows(env, { filterByFormula, 'fields[]': base });
+        throw e;
+      });
+      const key = (v: unknown) => String(v ?? '').normalize('NFKC').replace(/[\s　]/g, '');
+      const duplicates = [];
+      for (const p of people) {
+        const me = key(`${p.sei}${p.mei}`);
+        for (const r of sameDay) {
+          const f = r.fields;
+          const same = (me && key(f['名前']) === me)
+            || (p.personRec && f['既存個人レコードID'] === p.personRec)
+            || (p.personId && key(f['既存個人ID']) === key(p.personId));
+          if (same) duplicates.push({ name: `${p.sei}　${p.mei}`.trim(), no: String(f['予約番号'] ?? ''), route: String(f['受付経路'] ?? ''), status: String(f[F.status] ?? ''), rowName: String(f['名前'] ?? '') });
+        }
+      }
+      if (duplicates.length) {
+        return json({ ok: false, duplicates, error: '同じ御祈祷日に、同じ方の予約がすでに予約受付にあります。' }, 409);
+      }
+    } catch (e) {
+      console.error('admin/paper: 同じ方の予約の確認に失敗', e);
+      return fail('Airtable を読み込めませんでした。少し待ってから、もう一度押してください。', 502);
+    }
+  }
+
   // ── 1人1行で書き込む ──
   const rows = (withFee: boolean, withRec = true) =>
     people.map((p, n) => {
