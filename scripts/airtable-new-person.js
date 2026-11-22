@@ -52,6 +52,8 @@ const R = {
   zip: '郵便番号', address: '住所', building: '建物名等', tel: '電話番号',
   group: '予約グループ', rep: '代表者', status: '予約ステータス',
   personId: '既存個人ID', houseId: '既存世帯ID', parents: '父母の名前',
+  // 台帳へのつなぎ用：個人・世帯の Airtable のレコードID（rec…）。名前は重なることがあるので、こちらでつなぐ（1行の文字の項目）
+  personRec: '既存個人レコードID', houseRec: '既存世帯レコードID',
   // 名前だけ同じ方が個人の表にいても、別人として作ってよいときにチェックを入れる項目（チェックボックス）
   allow: '同姓同名の別人として登録',
   // 転居：チェックを入れて押すと、その方の世帯の住所・建物名等・郵便番号・電話番号を、この行の内容に書き換える（チェックボックス）
@@ -229,13 +231,42 @@ log(`予約グループ：${groupNo || '（なし）'}　${rows.length}名`);
 // いちばん左の項目（ID）も読むため、項目をしぼらずに読む
 const pAll = cache.person ?? (cache.person = await query(person));
 const hAll = cache.house ?? (cache.house = await query(house));
-const houseByName = new Map(hAll.records.filter(idOf).map((h) => [idOf(h), h]));
+/** 名前から世帯を探す（同じ名前の世帯が複数あることもある） */
+const housesByName = new Map();
+for (const h of hAll.records) if (idOf(h)) housesByName.set(idOf(h), [...(housesByName.get(idOf(h)) ?? []), h]);
+const houseByName = { get: (n) => { const hs = housesByName.get(n) ?? []; return hs.length === 1 ? hs[0] : null; } };
+const personsByName = new Map();
+for (const p of pAll.records) if (idOf(p)) personsByName.set(idOf(p), [...(personsByName.get(idOf(p)) ?? []), p]);
 /** 会社・団体の行は、住所が同じでもご家族の世帯にしない */
 const isCompany = (h) => !!h && hasH('kind') && /会社|団体/.test(h.getCellValueAsString(H.kind));
 /** その方自身の世帯（会社・団体でない、つながっている世帯） */
 const ownHouseOf = (p) => (p.getCellValue(P.house) ?? []).map((l) => hAll.getRecord(l.id)).find((h) => h && !isCompany(h)) ?? null;
 /** 会社・団体にだけつながっている方（団体の代表としての登録。ご本人としては使わない） */
 const companyOnly = (p) => { const hs = (p.getCellValue(P.house) ?? []).map((l) => hAll.getRecord(l.id)).filter(Boolean); return hs.length > 0 && hs.every(isCompany); };
+/** 予約受付の行に入っている ID から、個人を決める（レコードIDがあればそれ。名前が重なるときは、世帯の名前も合う方） */
+const personFromRow = (r) => {
+  const rid = hasR('personRec') ? str(r, R.personRec) : '';
+  if (rid && pAll.getRecord(rid)) return pAll.getRecord(rid);
+  const cands = personsByName.get(str(r, R.personId)) ?? [];
+  if (cands.length <= 1) return cands[0] ?? null;
+  const hn = str(r, R.houseId);
+  const hit = cands.filter((p) => (p.getCellValue(P.house) ?? []).some((l) => idOf(hAll.getRecord(l.id)) === hn));
+  return hit.length === 1 ? hit[0] : null;
+};
+/** 予約受付の行に入っている ID から、世帯を決める（レコードIDがあればそれ。名前が重なるときは、その方がつながっている世帯） */
+const houseFromRow = (r, personRec) => {
+  const rid = hasR('houseRec') ? str(r, R.houseRec) : '';
+  if (rid && hAll.getRecord(rid)) return hAll.getRecord(rid);
+  const name = str(r, R.houseId);
+  if (!name) return null;
+  const cands = housesByName.get(name) ?? [];
+  if (personRec) {
+    const linked = cands.filter((h) => (personRec.getCellValue(P.house) ?? []).some((l) => l.id === h.id));
+    if (linked.length === 1) return linked[0];
+  }
+  const homes = cands.filter((h) => !isCompany(h));
+  return cands.length === 1 ? cands[0] : homes.length === 1 ? homes[0] : null;
+};
 const personKey = (sei, mei, birth) => `${norm(sei)}${norm(mei)}|${birth ?? ''}`;
 const personIndex = new Map();
 /** 名前だけの索引（名前だけ同じ方を見つけて止めるため） */
@@ -312,7 +343,12 @@ for (const [addr, members] of byAddr) {
   // 個人：既存個人IDが空の方は、同じ名前・生年月日の方を探す
   const people = members.map((r) => {
     const pid = str(r, R.personId);
-    if (pid) { const rb0 = rowBirth(r); return { r, existing: true, birth: rb0.key, birthFromParts: rb0.fromParts }; }
+    if (pid) {
+      const rb0 = rowBirth(r);
+      const rec = personFromRow(r);
+      if (!rec) problems.push(`${str(r, R.name)}：既存個人ID「${pid}」の方を、個人の表で1人に決められませんでした（同じ名前の方が複数か、見つかりません）。既存個人IDを確かめてください。`);
+      return { r, existing: true, existingRec: rec, birth: rb0.key, birthFromParts: rb0.fromParts };
+    }
     const [sei, mei] = splitName(str(r, R.name));
     const rb = rowBirth(r);
     const birth = rb.key;
@@ -351,8 +387,10 @@ for (const [addr, members] of byAddr) {
   // 世帯：1) 既存世帯IDが入っている方  2) 見つかった個人の世帯  3) 同じ住所の世帯  4) 新しく作る
   let houseRec = null;
   for (const r of members) {
-    const hid = str(r, R.houseId);
-    if (hid && houseByName.get(hid)) { houseRec = houseByName.get(hid); break; }
+    const pr = people.find((p) => p.r === r)?.existingRec ?? null;
+    const h = houseFromRow(r, pr);
+    if (h) { houseRec = h; break; }
+    if (str(r, R.houseId)) problems.push(`${str(r, R.name)}：既存世帯ID「${str(r, R.houseId)}」の世帯を、1つに決められませんでした（同じ名前の世帯が複数か、見つかりません）。既存世帯IDを確かめてください。`);
   }
   if (!houseRec) {
     // 見つかった個人の世帯（会社・団体の行は使わない）
@@ -402,7 +440,7 @@ for (const [addr, members] of byAddr) {
   }
 
   for (const p of people) {
-    if (p.existing || p.skip) { plan.push({ row: p.r, houseRec, houseNew, keepPerson: true }); continue; }
+    if (p.existing || p.skip) { plan.push({ row: p.r, houseRec, houseNew, keepPerson: true, personRec: p.existingRec ?? undefined }); continue; }
     if (p.found) { plan.push({ row: p.r, houseRec, houseNew, personRec: p.found }); continue; }
     if (!p.sei) { problems.push('名前が空の行があります。'); continue; }
     if (noHouse) { problems.push(`${p.sei}　${p.mei}：個人の表に見つからず、住所も空なので、作れません。住所を入れるか、既存世帯ID を入れてから、もう一度押してください。`); continue; }
@@ -469,8 +507,8 @@ if (!blocks.length) {
   const seen = new Set();
   for (const x of plan) {
     if (!x.row || !str(x.row, R.address)) continue;
-    const h = x.personRec ? ownHouseOf(x.personRec)
-      : x.keepPerson ? (houseByName.get(str(x.row, R.houseId)) ?? null) : null;
+    const h = x.keepPerson ? houseFromRow(x.row, x.personRec ?? null)
+      : x.personRec ? ownHouseOf(x.personRec) : null;
     if (!h || isCompany(h) || seen.has(h.id) || sameAddress(h, x.row)) continue;
     seen.add(h.id);
     const from = fullAddr(h.getCellValueAsString(H.address), hasH('building') ? h.getCellValueAsString(H.building) : '');
@@ -533,8 +571,9 @@ if (blocks.length) {
       x.personId = await person.createRecordAsync(x.personNew);
     } else if (x.personRec) {
       x.personId = x.personRec.id;
-      // 見つかった方には、その方自身の世帯を書き戻す（なければ、この予約の世帯につなぐ）
-      const own = ownHouseOf(x.personRec);
+      // 見つかった方には、その方自身の世帯を書き戻す（なければ、この予約の世帯につなぐ）。
+      // すでに既存世帯IDが入っている行（会社・団体の御祈祷など、手で決めた世帯）は、その世帯のまま
+      const own = x.keepPerson && x.houseRec ? null : ownHouseOf(x.personRec);
       if (own) x.houseId = own.id;
       // 見つかった個人に世帯がなければ、つなぐ
       if (x.houseId && !x.personRec.getCellValue(P.house)?.length) {
@@ -566,6 +605,9 @@ if (blocks.length) {
     // 住所を書き換えたら、チェックを外しておく（次に押したときにまた書き換えないように）
     if (houseUpdates.size && hasR('updateAddr') && x.row.getCellValue(R.updateAddr)) f[R.updateAddr] = false;
     if (hName && !str(x.row, R.houseId)) f[R.houseId] = hName;
+    // 台帳へは、名前ではなくレコードIDでつなぐ（同じ名前の世帯・個人があっても取り違えないように）
+    if (hasR('personRec') && x.personId && str(x.row, R.personRec) !== x.personId) f[R.personRec] = x.personId;
+    if (hasR('houseRec') && x.houseId && str(x.row, R.houseRec) !== x.houseId) f[R.houseRec] = x.houseId;
     if (x.personId && !pName) problems.push(`${str(x.row, R.name)}：個人の ID が読めませんでした（レコードID ${x.personId}）。既存個人IDを手で入れてください。`);
     if (x.houseId && !hName) problems.push(`${str(x.row, R.name)}：世帯の ID が読めませんでした（レコードID ${x.houseId}）。既存世帯IDを手で入れてください。`);
     if (Object.keys(f).length) updates.push({ id: x.row.id, fields: f });
