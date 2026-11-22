@@ -42,7 +42,8 @@
     "dateText": "一年中受付",
     "schedule": {
       "month": 11,
-      "day": 15
+      "day": 1,
+      "endDay": 30
     }
   },
   {
