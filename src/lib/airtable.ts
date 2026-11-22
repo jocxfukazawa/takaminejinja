@@ -19,6 +19,10 @@ export interface AirtableEnv {
   AIRTABLE_RECEPTION_TABLE?: string;
   /** 動作確認用に差し替えるときだけ設定する */
   AIRTABLE_API_URL?: string;
+  /** 個人の表（名前か ID。設定しなければ「個人」）。紙の申込書の入力で、登録済みの方を探すのに使う */
+  AIRTABLE_PERSON_TABLE?: string;
+  /** 世帯・会社の表（名前か ID。設定しなければ「世帯・会社」） */
+  AIRTABLE_HOUSE_TABLE?: string;
 }
 
 export interface AirtableRecord {
@@ -121,6 +125,9 @@ const slotKey = (date: unknown, time: unknown) => {
 };
 
 /** 予約の表の行を読む（印刷ページなど、神社の方だけが使う処理から） */
+/** 予約の表以外の表を読む（個人・世帯・会社など） */
+export const listTable = listAll;
+
 export async function listRows(env: AirtableEnv, params: Record<string, string | string[]>) {
   return listAll(env, env.AIRTABLE_TABLE!, { pageSize: '100', ...params });
 }
