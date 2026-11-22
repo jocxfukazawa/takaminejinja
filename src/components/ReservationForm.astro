@@ -122,10 +122,10 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
       </legend>
       {paper && (
       <div class="p-contact-form__row">
-        <div class="p-contact-form__label"><label for="p__i__-no">申込書の番号（No.）</label><span class="p-required">必須</span></div>
+        <div class="p-contact-form__label"><label for="p__i__-no">申込書の番号（No.）</label></div>
         <div class="p-contact-form__field">
-          <input id="p__i__-no" name="p__i__-no" type="text" inputmode="numeric" maxlength="20" required class="p-reserve__short" />
-          <p class="p-reserve__help">紙の申込書の右上の番号です。予約受付の「予約番号」に入ります。</p>
+          <input id="p__i__-no" name="p__i__-no" type="text" inputmode="numeric" maxlength="20" class="p-reserve__short" />
+          <p class="p-reserve__help">紙の申込書の右上の番号です。予約受付の「予約番号」に入ります。番号がなければ空のままで構いません。</p>
         </div>
       </div>
       )}
@@ -786,7 +786,7 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
       }
       // 登録できた：何を入れたかを上に出し、次の申込書のために空にする（御祈祷日と時刻は残す）
       if (done) {
-        const list = (data.numbers ?? []).map((no, n) => `${no}　${data.names?.[n] ?? ''}`).join('、');
+        const list = (data.numbers ?? []).map((no, n) => `${no || '（番号なし）'}　${data.names?.[n] ?? ''}`).join('、');
         done.innerHTML = '';
         const strong = document.createElement('strong');
         strong.textContent = `予約受付に${data.numbers?.length ?? 0}名を登録しました：${list}`;

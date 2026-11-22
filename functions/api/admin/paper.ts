@@ -4,7 +4,8 @@
  *   POST /api/admin/paper  （JSON）
  *
  * ご家族で共通の項目（御祈祷日・住所・電話番号など）は1回だけ受け取り、1人1行で書き込む。
- *   予約番号 ＝ 紙の申込書の番号（1人に1つ）。代表の方（1人目）の番号を全員の「予約グループ」に入れる。
+ *   予約番号 ＝ 紙の申込書の番号（1人に1つ。ない申込書もあるので空でもよい）。
+ *   ご家族をまとめるため、全員の「予約グループ」に同じ値を入れる（番号のある最初の方の番号。だれも番号がなければ「窓口-日時」）。
  *   受付経路「窓口」、予約ステータス「予約確定」、祈祷方法「来社」。
  *   生年月日は和暦（元号・年・月・日）で受け取り、Web の予約と同じ「YYYY/MM/DD」で入れる。
  *   初穂料は、入っていれば「初穂料」の項目に入れる（その項目が数式などで書き込めなければ、入れずに知らせる）。
@@ -95,8 +96,7 @@ export const onRequestPost: PagesFunction<AirtableEnv & AccessEnv> = async ({ re
     const meiKana = text(p.meiKana).replace(/[\s　]+/g, '');
     const gender = clean(p.gender);
     const special = text(p.special);
-    if (!no) return fail(`申込書の番号（No.）を入れてください。${who}`);
-    if (/^W/i.test(no)) return fail(`申込書の番号に「W」は使えません（Web の予約の番号と区別するため）。${who}`);
+    if (no && /^W/i.test(no)) return fail(`申込書の番号に「W」は使えません（Web の予約の番号と区別するため）。${who}`);
     if (!sei) return fail(`お名前（姓）を入れてください。${who}`);
     if (gender && !GENDERS.includes(gender)) return fail(`性別を選び直してください。${who}`);
     // 生年月日（和暦）。入っていなければ空のまま
@@ -134,13 +134,16 @@ export const onRequestPost: PagesFunction<AirtableEnv & AccessEnv> = async ({ re
     people.push({ no, sei, mei, seiKana, meiKana, gender, special, birth, prayerNames, extras, haraobi, car, parents, fee });
   }
 
-  // 番号の重なり（この入力の中、予約受付の表）
+  // 番号の重なり（この入力の中、予約受付の表）。番号のない申込書は調べない
   const numbers = people.map((p) => p.no);
-  const dup = numbers.find((no, i) => numbers.indexOf(no) !== i);
+  const given = numbers.filter(Boolean);
+  const dup = given.find((no, i) => given.indexOf(no) !== i);
   if (dup) return fail(`申込書の番号「${dup}」が2回入っています。`);
-  try {
+  const jst = new Date(Date.now() + 9 * 3600 * 1000).toISOString();
+  const group = given[0] || `窓口-${jst.slice(0, 10).replace(/-/g, '')}-${jst.slice(11, 19).replace(/:/g, '')}`;
+  if (given.length) try {
     // 紙の番号は年ごとに1から始まることがあるので、御祈祷日が1年以内の行だけを「同じ申込書」とみなす
-    const formula = `OR(${numbers.map((n) => `{予約番号} = '${n.replace(/'/g, '')}'`).join(', ')})`;
+    const formula = `OR(${given.map((n) => `{予約番号} = '${n.replace(/'/g, '')}'`).join(', ')})`;
     const found = await listRows(env, { filterByFormula: formula, 'fields[]': ['予約番号', F.date] });
     const near = found.filter((r) => {
       const m = String(r.fields[F.date] ?? '').match(/(\d{4})\D(\d{1,2})\D(\d{1,2})/);
@@ -166,7 +169,7 @@ export const onRequestPost: PagesFunction<AirtableEnv & AccessEnv> = async ({ re
         [F.status]: '予約確定',
         受付経路: '窓口',
         予約番号: p.no,
-        予約グループ: numbers[0],
+        予約グループ: group,
         代表者: n === 0,
         [F.date]: storedDate(date),
         [F.time]: time ? time.padStart(5, '0') : '',
