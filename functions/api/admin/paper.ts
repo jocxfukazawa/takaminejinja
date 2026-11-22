@@ -54,7 +54,9 @@ export function warekiToKey(era: string, y: number, m: number, d: number): strin
 interface PersonIn {
   no?: string; special?: string; sei?: string;
   /** 登録済みの方を選んだとき：個人の「Name」と、世帯の「世帯・会社名」（予約受付の既存個人ID・既存世帯ID に入れる） */
-  personId?: string; houseId?: string; mei?: string; seiKana?: string; meiKana?: string; gender?: string;
+  personId?: string; houseId?: string;
+  /** 同じ方の Airtable のレコードID（rec…）。台帳へは、名前ではなくこちらでつなぐ */
+  personRec?: string; houseRec?: string; mei?: string; seiKana?: string; meiKana?: string; gender?: string;
   era?: string; y?: string | number; m?: string | number; d?: string | number;
   prayers?: string[]; other?: string; haraobi?: string; car?: string;
   father?: string; fatherKana?: string; mother?: string; motherKana?: string; fee?: string | number;
@@ -137,7 +139,9 @@ export const onRequestPost: PagesFunction<AirtableEnv & AccessEnv> = async ({ re
     if (fee > 10_000_000) return fail(`初穂料の金額を確かめてください。${who}`);
     const personId = text(p.personId).slice(0, 200);
     const houseId = text(p.houseId).slice(0, 200);
-    people.push({ no, sei, mei, seiKana, meiKana, gender, special, birth, personId, houseId, prayerNames, extras, haraobi, car, parents, fee });
+    const personRec = /^rec\w{10,20}$/.test(text(p.personRec)) ? text(p.personRec) : '';
+    const houseRec = /^rec\w{10,20}$/.test(text(p.houseRec)) ? text(p.houseRec) : '';
+    people.push({ no, sei, mei, seiKana, meiKana, gender, special, birth, personId, houseId, personRec, houseRec, prayerNames, extras, haraobi, car, parents, fee });
   }
 
   // 番号の重なり（この入力の中、予約受付の表）。番号のない申込書は調べない
@@ -167,7 +171,7 @@ export const onRequestPost: PagesFunction<AirtableEnv & AccessEnv> = async ({ re
   }
 
   // ── 1人1行で書き込む ──
-  const rows = (withFee: boolean) =>
+  const rows = (withFee: boolean, withRec = true) =>
     people.map((p, n) => {
       const fields: Record<string, unknown> = {
         名前: [p.sei, p.mei].filter(Boolean).join('　'),
@@ -184,6 +188,7 @@ export const onRequestPost: PagesFunction<AirtableEnv & AccessEnv> = async ({ re
         // 登録済みの方を選んだときは、その方の ID を入れておく（「確認・登録」は探し直さずにこの方を使う）
         既存個人ID: p.personId,
         既存世帯ID: p.houseId,
+        ...(withRec ? { 既存個人レコードID: p.personRec, 既存世帯レコードID: p.houseRec } : {}),
         性別: p.gender,
         生年月日: p.birth,
         郵便番号: zip,
@@ -205,12 +210,22 @@ export const onRequestPost: PagesFunction<AirtableEnv & AccessEnv> = async ({ re
   const anyFee = people.some((p) => p.fee);
   let warning = '';
   try {
+    // 「既存個人レコードID」「既存世帯レコードID」の項目がまだない表でも書き込めるよう、なければ外して書き込み直す
+    const anyRec = people.some((p) => p.personRec || p.houseRec);
+    const write = async (withFee: boolean) => {
+      try {
+        await createRecords(env, rows(withFee, true));
+      } catch (e) {
+        if (anyRec && e instanceof AirtableError && /レコードID/.test(e.message)) await createRecords(env, rows(withFee, false));
+        else throw e;
+      }
+    };
     try {
-      await createRecords(env, rows(true));
+      await write(true);
     } catch (e) {
       // 「初穂料」が数式などで書き込めないときは、初穂料を入れずに書き込み直す
       if (anyFee && e instanceof AirtableError && /初穂料/.test(e.message)) {
-        await createRecords(env, rows(false));
+        await write(false);
         warning = '予約受付の「初穂料」は書き込めない項目だったので、初穂料は入れていません。';
       } else {
         throw e;

@@ -788,6 +788,8 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
     card.querySelectorAll<HTMLInputElement>(`input[name="${pre}-gender"]`).forEach((r) => (r.checked = r.value === p.gender));
     card.dataset.personId = p.name;
     card.dataset.houseId = p.house && !p.house.company ? p.house.name : '';
+    card.dataset.personRec = p.id;
+    card.dataset.houseRec = p.house && !p.house.company ? p.house.id : '';
     const picked = card.querySelector<HTMLElement>('[data-picked]')!;
     picked.innerHTML = `<span>登録済みの方を選びました：<strong>${esc(describe(p))}</strong></span><button type="button" data-unpick>選ぶのをやめる</button>`;
     picked.hidden = false;
@@ -891,6 +893,8 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
   function unpick(card: HTMLElement, note: string) {
     delete card.dataset.personId;
     delete card.dataset.houseId;
+    delete card.dataset.personRec;
+    delete card.dataset.houseRec;
     const picked = card.querySelector<HTMLElement>('[data-picked]')!;
     picked.textContent = note;
     picked.hidden = !note;
@@ -912,6 +916,7 @@ const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x0000000000000000
         other: v('prayer-other'), haraobi: checked(`${pre}-haraobi`), car: v('car'),
         father: v('father'), fatherKana: v('father-kana'), mother: v('mother'), motherKana: v('mother-kana'), fee: v('fee'),
         personId: card.dataset.personId ?? '', houseId: card.dataset.houseId ?? '',
+        personRec: card.dataset.personRec ?? '', houseRec: card.dataset.houseRec ?? '',
       };
     });
     const body = {
