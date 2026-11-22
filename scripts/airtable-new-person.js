@@ -76,6 +76,10 @@ const SKIP_STATUS = ['キャンセル'];
 const { recordId: clickedId } = input.config();
 let recordId = clickedId; // いま処理している行（まとめて処理するときは、行ごとに変わる）
 let resultIds = []; // 結果を書き込む行（同じ予約グループの全員）
+// Airtable のスクリプトは、1回の実行で表を読めるのが30回まで。表は最初に1回だけ読み、作ったり書き換えたりしたときだけ読み直す
+const cache = { reserve: null, person: null, house: null };
+let queries = 0;
+const query = async (table, opts) => { queries++; return table.selectRecordsAsync(opts); };
 const reserve = base.getTable(T_RESERVE);
 const person = base.getTable(T_PERSON);
 const house = base.getTable(T_HOUSE);
@@ -211,7 +215,7 @@ const parseParents = (text) => {
 
 // ── 押した行と、同じ予約グループの行 ──
 const rFields = Object.keys(R).filter((k) => hasR(k)).map((k) => R[k]);
-const all = await reserve.selectRecordsAsync({ fields: rFields });
+const all = cache.reserve ?? (cache.reserve = await query(reserve, { fields: rFields }));
 const clicked = all.getRecord(recordId);
 if (!clicked) throw new Error('押した行が見つかりません。');
 const groupNo = str(clicked, hasR('group') ? R.group : null);
@@ -223,8 +227,8 @@ log(`予約グループ：${groupNo || '（なし）'}　${rows.length}名`);
 
 // ── 今ある個人・世帯 ──
 // いちばん左の項目（ID）も読むため、項目をしぼらずに読む
-const pAll = await person.selectRecordsAsync();
-const hAll = await house.selectRecordsAsync();
+const pAll = cache.person ?? (cache.person = await query(person));
+const hAll = cache.house ?? (cache.house = await query(house));
 const houseByName = new Map(hAll.records.filter(idOf).map((h) => [idOf(h), h]));
 /** 会社・団体の行は、住所が同じでもご家族の世帯にしない */
 const isCompany = (h) => !!h && hasH('kind') && /会社|団体/.test(h.getCellValueAsString(H.kind));
@@ -538,14 +542,19 @@ if (blocks.length) {
       }
     }
   }
-  // 作った ID（いちばん左の項目）を読み直して、予約受付に書き戻す
-  const pNow = await person.selectRecordsAsync();
-  const hNow = await house.selectRecordsAsync();
   // 転居：世帯の住所を書き換える
   for (const u of houseUpdates.values()) {
     await house.updateRecordAsync(u.house.id, u.fields);
     log(`世帯 ${idOf(u.house)} の住所を書き換えました：${u.from} → ${u.to}`);
   }
+  // 作ったり書き換えたりしたときだけ、個人・世帯の表を読み直す（作った方の ID を読むため。次の組でも使う）
+  const changed = madeHouse.size > 0 || plan.some((x) => x.personNew || (x.personRec && x.houseId && !x.personRec.getCellValue(P.house)?.length)) || houseUpdates.size > 0;
+  if (changed) {
+    cache.person = await query(person);
+    cache.house = await query(house);
+  }
+  const pNow = cache.person;
+  const hNow = cache.house;
   const updates = [];
   for (const x of plan) {
     if (!x.row) continue; // 父母の分は、予約受付に書き戻す行がない
@@ -591,15 +600,17 @@ if (!BATCH) {
   const started = Date.now();
   const today = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
   const names = new Set(reserve.fields.map((f) => f.name));
-  const want = ['予約ステータス', '御祈祷日', '予約グループ', '代表者', STATE_FIELD].filter((n) => names.has(n));
-  const all = await reserve.selectRecordsAsync({ fields: want });
+  const want = ['予約ステータス', '御祈祷日', '予約グループ', '代表者', STATE_FIELD, RESULT_FIELD].filter((n) => names.has(n));
+  const all = await query(reserve, { fields: want });
   const s = (r, f) => (names.has(f) ? r.getCellValueAsString(f).trim() : '');
   const dateOf = (r) => {
     const m = s(r, '御祈祷日').match(/(\d{4})\D(\d{1,2})\D(\d{1,2})/);
     return m ? `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}` : '';
   };
   const targets = all.records.filter((r) => BATCH_STATUSES.includes(s(r, '予約ステータス'))
-    && (!dateOf(r) || dateOf(r) <= today) && !s(r, STATE_FIELD));
+    && (!dateOf(r) || dateOf(r) <= today)
+    // まだ処理していない行。表を読む回数の上限で止まった行（エラー）も、やり直す
+    && (!s(r, STATE_FIELD) || (s(r, STATE_FIELD) === 'エラー' && /Exceeded quota/.test(s(r, RESULT_FIELD)))));
   // 予約グループごとに1行（代表者の行があればその行）
   const groups = new Map();
   for (const r of targets.sort((a, b) => (dateOf(a) || '0').localeCompare(dateOf(b) || '0'))) {
@@ -609,7 +620,8 @@ if (!BATCH) {
   const count = { 完了: 0, 要確認: 0, エラー: 0, 試し運転: 0 };
   let done = 0;
   for (const r of groups.values()) {
-    if (Date.now() - started > BATCH_LIMIT_MS) break;
+    // 時間か、表を読む回数（1組で最大2回）が上限に近づいたら、続きは次に押したときにする
+    if (Date.now() - started > BATCH_LIMIT_MS || queries > 30 - 3) break;
     recordId = r.id;
     await runOne();
     count[state] = (count[state] ?? 0) + 1;
