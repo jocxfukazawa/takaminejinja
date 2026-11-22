@@ -21,6 +21,8 @@
  *       使う世帯が今ある世帯なら、その世帯に同じ名前の方がいれば、その方は作らない。
  *       電話番号は、子ではなく父（いなければ母）の個人に入れる。
  *   - そのほかの新しい世帯の名前は、代表の方の名前にする。
+ *   - 転居：すでにいる方の世帯の住所と、この行の住所が違えば「要確認」にして知らせる（ID は書き戻す）。
+ *       この行の「世帯の住所を更新」にチェックを入れて押し直すと、その世帯の住所などを書き換える（世帯の全員の住所が変わる）。
  *   - 生年月日：「生年月日」が空で、元号・年・月・日が入っていれば、そこから読み、「生年月日」にも書き戻す（紙の申込書の分）。
  *   - 生年月日が分からない方は、名前と住所で探す（同じ名前の方が、同じ住所の世帯に1人だけいれば、その方を使う）。
  *   - 名前だけ同じ方（生年月日が違う・空）が個人の表にいれば、何も作らずに止めて知らせる。
@@ -47,6 +49,8 @@ const R = {
   personId: '既存個人ID', houseId: '既存世帯ID', parents: '父母の名前',
   // 名前だけ同じ方が個人の表にいても、別人として作ってよいときにチェックを入れる項目（チェックボックス）
   allow: '同姓同名の別人として登録',
+  // 転居：チェックを入れて押すと、その方の世帯の住所・建物名等・郵便番号・電話番号を、この行の内容に書き換える（チェックボックス）
+  updateAddr: '世帯の住所を更新',
   // 紙の申込書から入れるときの生年月日（和暦）。「生年月日」が空なら、ここから読む
   era: '元号', y: '年', m: '月', d: '日',
 };
@@ -431,6 +435,43 @@ for (const [addr, members] of byAddr) {
   }
 }
 
+// ── 転居：すでにいる方の世帯の住所と、この行の住所を比べる ──
+const houseUpdates = new Map(); // 世帯のレコードID → { house, fields, from, to }
+const sameAddress = (h, r) => {
+  const hb = hasH('building') ? h.getCellValueAsString(H.building).trim() : '';
+  const rb = hasR('building') ? str(r, R.building) : '';
+  if (addrOf(h, H.address, hasH('building') ? H.building : null) === addrOf(r, R.address, hasR('building') ? R.building : null)) return true;
+  // 片方に建物名がなければ、建物名を除いて比べる
+  return (!hb || !rb) && addrKey(h.getCellValueAsString(H.address)) === addrKey(str(r, R.address));
+};
+const fullAddr = (a, b) => [a, b].map((v) => String(v ?? '').trim()).filter(Boolean).join(' ');
+if (!blocks.length) {
+  const seen = new Set();
+  for (const x of plan) {
+    if (!x.row || !str(x.row, R.address)) continue;
+    const h = x.personRec ? ownHouseOf(x.personRec)
+      : x.keepPerson ? (houseByName.get(str(x.row, R.houseId)) ?? null) : null;
+    if (!h || isCompany(h) || seen.has(h.id) || sameAddress(h, x.row)) continue;
+    seen.add(h.id);
+    const from = fullAddr(h.getCellValueAsString(H.address), hasH('building') ? h.getCellValueAsString(H.building) : '');
+    const to = fullAddr(str(x.row, R.address), hasR('building') ? str(x.row, R.building) : '');
+    const wantUpdate = hasR('updateAddr') && rows.some((r) => r.getCellValue(R.updateAddr));
+    if (wantUpdate) {
+      const fields = { [H.address]: str(x.row, R.address) };
+      if (hasH('building')) fields[H.building] = hasR('building') ? str(x.row, R.building) : '';
+      if (hasH('zip')) fields[H.zip] = hasR('zip') ? str(x.row, R.zip) : '';
+      if (hasH('tel') && hasR('tel') && str(x.row, R.tel)) fields[H.tel] = str(x.row, R.tel);
+      houseUpdates.set(h.id, { house: h, fields, from, to });
+    } else {
+      problems.push(`${str(x.row, R.name)}：世帯の住所と今回の住所が違います（転居かもしれません）\n`
+        + `　世帯の表（${idOf(h)}）：${from}\n　今回：${to}\n`
+        + `　→ 家族ごとの転居なら、この行の「${R.updateAddr}」にチェックを入れて、もう一度押してください（その世帯の全員の住所が変わります）。`
+        + '一人だけ家を出た場合は、住所を変えずに、新しい世帯を作ってその方だけ移してください。'
+        + (hasR('updateAddr') ? '' : `（予約受付の表に「${R.updateAddr}」のチェックボックスの項目を作ってください）`));
+    }
+  }
+}
+
 // ── 予定を出す（止まるときは出さない。作らないので、まぎらわしいため） ──
 for (const x of blocks.length ? [] : plan) {
   const who = x.row ? str(x.row, R.name) : x.label;
@@ -452,6 +493,7 @@ if (blocks.length) {
   state = '要確認';
   output.set('result', 'stopped');
 } else if (DRY_RUN) {
+  for (const u of houseUpdates.values()) log(`世帯 ${idOf(u.house)} の住所を書き換える予定です：${u.from} → ${u.to}`);
   for (const m of problems) log(`⚠ ${m}`);
   log('試し運転なので、まだ何も作っていません。');
   state = '試し運転';
@@ -483,6 +525,11 @@ if (blocks.length) {
   // 作った ID（いちばん左の項目）を読み直して、予約受付に書き戻す
   const pNow = await person.selectRecordsAsync();
   const hNow = await house.selectRecordsAsync();
+  // 転居：世帯の住所を書き換える
+  for (const u of houseUpdates.values()) {
+    await house.updateRecordAsync(u.house.id, u.fields);
+    log(`世帯 ${idOf(u.house)} の住所を書き換えました：${u.from} → ${u.to}`);
+  }
   const updates = [];
   for (const x of plan) {
     if (!x.row) continue; // 父母の分は、予約受付に書き戻す行がない
@@ -491,6 +538,8 @@ if (blocks.length) {
     const hName = x.houseId ? idOf(hNow.getRecord(x.houseId)) : '';
     if (pName && !str(x.row, R.personId)) f[R.personId] = pName;
     if (birthBack.has(x.row.id)) f[R.birth] = birthBack.get(x.row.id);
+    // 住所を書き換えたら、チェックを外しておく（次に押したときにまた書き換えないように）
+    if (houseUpdates.size && hasR('updateAddr') && x.row.getCellValue(R.updateAddr)) f[R.updateAddr] = false;
     if (hName && !str(x.row, R.houseId)) f[R.houseId] = hName;
     if (x.personId && !pName) problems.push(`${str(x.row, R.name)}：個人の ID が読めませんでした（レコードID ${x.personId}）。既存個人IDを手で入れてください。`);
     if (x.houseId && !hName) problems.push(`${str(x.row, R.name)}：世帯の ID が読めませんでした（レコードID ${x.houseId}）。既存世帯IDを手で入れてください。`);
