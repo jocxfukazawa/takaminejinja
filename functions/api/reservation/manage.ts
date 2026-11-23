@@ -11,6 +11,7 @@
  *   メールとカレンダーは「予約キャンセル」のオートメーションが代表の方の行で1回だけ動く）。
  * 日時の変更：ご家族全員の行の日時を変え、Web の予約は「仮予約」に戻す（神社で確かめて改めて予約確定にする）。
  *   事前申込は日にちだけを変え、「事前申込」のまま。変更前の日時は「変更前の御祈祷日」「変更前の御祈祷時刻」に残す。
+ *   代表の方の行の「変更受付日時」に変えた日時を入れる（Airtable の「予約の日時変更（Web）」がこれを見て、ご本人にメールを送る）。
  * どちらも、代表の方の行の「予約の詳細」に書き足し、設定があれば神社にメールで知らせる。
  */
 
@@ -205,14 +206,16 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
           [F.status]: advance ? '事前申込' : '仮予約',
           ...(withBefore ? { 変更前の御祈祷日: str(m.fields[F.date]), 変更前の御祈祷時刻: str(m.fields[F.time]) } : {}),
           ...(m.id === r.rep.id ? { 予約の詳細: details ? `${details}\n\n${line}` : line } : {}),
+          // 「予約の日時変更（Web）」のメールのきっかけ（変えるたびに値が変わる）
+          ...(withBefore && m.id === r.rep.id ? { 変更受付日時: nowLabel() } : {}),
         },
       })));
     try {
       try {
         await update(true);
       } catch (e) {
-        // 「変更前の御祈祷日」「変更前の御祈祷時刻」の項目がない表なら、入れずに書き込み直す
-        if (e instanceof AirtableError && /変更前/.test(e.message)) await update(false);
+        // 「変更前の御祈祷日」「変更前の御祈祷時刻」「変更受付日時」の項目がない表なら、入れずに書き込み直す
+        if (e instanceof AirtableError && /変更前|変更受付日時/.test(e.message)) await update(false);
         else throw e;
       }
     } catch (e) {
