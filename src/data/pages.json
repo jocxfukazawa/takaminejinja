@@ -99,5 +99,13 @@
     "headerImg": "/wp-content/uploads/2023/08/reservation_mv.png",
     "narrow": true,
     "html": "<div class=\"p-entry__body\">\n<strong>ご祈祷のお申し込みを受け付けました。</strong><br/>\n社務所の受付で、下の<strong>受付番号</strong>をお伝えください（この画面を見せていただいても構いません）。<br/>\n初穂料は、受付でお納めください。ご祈祷は、お越しになった順にご案内いたします。\n</div>"
+  },
+  "reservation-manage": {
+    "title": "ご予約の確認・変更・キャンセル",
+    "description": "ご祈祷のご予約の確認、日時の変更、キャンセルができます。",
+    "headerTitle": "ご予約の確認・変更",
+    "headerImg": "/wp-content/uploads/2023/08/reservation_mv.png",
+    "narrow": true,
+    "html": "<div class=\"p-entry__body\"><p>ご予約の内容をご確認いただけます。日時の変更・キャンセルは、ご祈祷の2時間前まで（事前申し込みは、ご来社予定日の前日まで）この画面から承ります。それより後は、お電話でご連絡ください。</p></div>"
   }
 }
