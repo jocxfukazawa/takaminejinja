@@ -1,0 +1,234 @@
+---
+/**
+ * 巫女・舞姫の応募フォーム（お知らせ記事の末尾に表示）
+ * 送信先は functions/api/apply.ts。項目を変えるときは両方を直すこと。
+ */
+interface Props {
+  type: 'miko' | 'maihime';
+}
+const { type } = Astro.props;
+const siteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY || '1x00000000000000000000AA';
+const title = type === 'miko' ? '巫女の登録 応募フォーム' : '舞姫 応募フォーム';
+---
+<section class="p-apply" id="apply">
+  <h2 class="p-apply__title">{title}</h2>
+  <form class="p-contact-form p-apply__form js-apply-form" action="/api/apply" method="post" novalidate>
+    <input type="hidden" name="form-type" value={type} />
+
+    {type === 'miko' ? (
+      <>
+        <div class="p-contact-form__row">
+          <div class="p-contact-form__label"><label for="your-name">お名前</label><span class="p-required">必須</span></div>
+          <div class="p-contact-form__field"><input id="your-name" name="your-name" type="text" maxlength="400" required autocomplete="name" /></div>
+        </div>
+        <div class="p-contact-form__row">
+          <div class="p-contact-form__label"><label for="kana-name">ふりがな</label><span class="p-required">必須</span></div>
+          <div class="p-contact-form__field"><input id="kana-name" name="kana-name" type="text" maxlength="400" required /></div>
+        </div>
+        <div class="p-contact-form__row">
+          <div class="p-contact-form__label"><label for="age">ご年齢</label><span class="p-required">必須</span></div>
+          <div class="p-contact-form__field p-apply__short"><input id="age" name="age" type="text" inputmode="numeric" pattern="[0-9０-９]{1,3}" maxlength="3" required /> 歳</div>
+        </div>
+        <div class="p-contact-form__row">
+          <div class="p-contact-form__label" id="status-label">ご職業<span class="p-required">必須</span></div>
+          <div class="p-contact-form__field p-contact-form__checks" role="radiogroup" aria-labelledby="status-label">
+            {['高校生', '大学生・専門学校生', '社会人', 'その他'].map((v) => (
+              <label><input type="radio" name="status" value={v} required /> {v}</label>
+            ))}
+          </div>
+        </div>
+        <div class="p-contact-form__row">
+          <div class="p-contact-form__label"><label for="school">学校名・学年</label></div>
+          <div class="p-contact-form__field"><input id="school" name="school" type="text" maxlength="100" placeholder="学生の方はご記入ください" /></div>
+        </div>
+        <div class="p-contact-form__row js-consent-row" hidden>
+          <div class="p-contact-form__label" id="consent-label">高校生の方へ<span class="p-required">必須</span></div>
+          <div class="p-contact-form__field p-contact-form__checks" role="group" aria-labelledby="consent-label">
+            <label><input type="checkbox" name="consent" value="保護者の同意と学校の許可を得ています（または得る予定です）" /> 保護者の同意と学校の許可を得ています（または得る予定です）</label>
+          </div>
+        </div>
+        <div class="p-contact-form__row js-work-row" hidden>
+          <div class="p-contact-form__label"><label for="workplace">お勤め先</label><span class="p-required">必須</span></div>
+          <div class="p-contact-form__field"><input id="workplace" name="workplace" type="text" maxlength="100" /></div>
+        </div>
+        <div class="p-contact-form__row js-work-row" hidden>
+          <div class="p-contact-form__label" id="work-permission-label">お勤めの方へ<span class="p-required">必須</span></div>
+          <div class="p-contact-form__field p-contact-form__checks" role="group" aria-labelledby="work-permission-label">
+            <label><input type="checkbox" name="work-permission" value="勤務先の許可を得ています（または得る予定です）" /> 勤務先の許可を得ています（または得る予定です）</label>
+          </div>
+        </div>
+      </>
+    ) : (
+      <>
+        <div class="p-contact-form__row">
+          <div class="p-contact-form__label"><label for="your-name">保護者のお名前</label><span class="p-required">必須</span></div>
+          <div class="p-contact-form__field"><input id="your-name" name="your-name" type="text" maxlength="400" required autocomplete="name" /></div>
+        </div>
+        <div class="p-contact-form__row">
+          <div class="p-contact-form__label"><label for="kana-name">ふりがな</label><span class="p-required">必須</span></div>
+          <div class="p-contact-form__field"><input id="kana-name" name="kana-name" type="text" maxlength="400" required /></div>
+        </div>
+        <div class="p-contact-form__row">
+          <div class="p-contact-form__label"><label for="child-name">お子さまのお名前</label><span class="p-required">必須</span></div>
+          <div class="p-contact-form__field"><input id="child-name" name="child-name" type="text" maxlength="400" required /></div>
+        </div>
+        <div class="p-contact-form__row">
+          <div class="p-contact-form__label"><label for="child-kana">ふりがな</label><span class="p-required">必須</span></div>
+          <div class="p-contact-form__field"><input id="child-kana" name="child-kana" type="text" maxlength="400" required /></div>
+        </div>
+        <div class="p-contact-form__row">
+          <div class="p-contact-form__label"><label for="grade">お子さまの学年（現在）</label><span class="p-required">必須</span></div>
+          <div class="p-contact-form__field">
+            <select id="grade" name="grade" required>
+              <option value="">選択してください</option>
+              {['小学4年生', '小学5年生', '小学6年生', '中学1年生', '中学2年生', '中学3年生'].map((v) => <option value={v}>{v}</option>)}
+            </select>
+          </div>
+        </div>
+        <div class="p-contact-form__row">
+          <div class="p-contact-form__label"><label for="school">学校名</label></div>
+          <div class="p-contact-form__field"><input id="school" name="school" type="text" maxlength="100" /></div>
+        </div>
+      </>
+    )}
+
+    <div class="p-contact-form__row">
+      <div class="p-contact-form__label"><label for="your-email">メールアドレス</label><span class="p-required">必須</span></div>
+      <div class="p-contact-form__field"><input id="your-email" name="your-email" type="email" maxlength="400" required autocomplete="email" /></div>
+    </div>
+    <div class="p-contact-form__row">
+      <div class="p-contact-form__label"><label for="tel">電話番号</label><span class="p-required">必須</span></div>
+      <div class="p-contact-form__field"><input id="tel" name="tel" type="tel" maxlength="400" required autocomplete="tel" /></div>
+    </div>
+    <div class="p-contact-form__row">
+      <div class="p-contact-form__label"><label for="address">ご住所</label><span class="p-required">必須</span></div>
+      <div class="p-contact-form__field"><input id="address" name="address" type="text" maxlength="400" required autocomplete="street-address" /></div>
+    </div>
+
+    {type === 'miko' ? (
+      <>
+        <div class="p-contact-form__row">
+          <div class="p-contact-form__label" id="days-label">ご奉仕できそうなお祭り<span class="p-required">必須</span></div>
+          <p class="p-apply__hint">いくつでもお選びください。日程は、お祭りのたびに改めておうかがいします。</p>
+          <div class="p-contact-form__field p-contact-form__checks js-need-one" role="group" aria-labelledby="days-label">
+            {['正月（12月31日〜1月3日）', '黒星（厄除け）祈願祭', '春祭り', '夏祭り', '秋祭り'].map((v) => (
+              <label><input type="checkbox" name="days" value={v} /> {v}</label>
+            ))}
+          </div>
+        </div>
+        <div class="p-contact-form__row">
+          <div class="p-contact-form__label" id="exp-label">巫女のご経験</div>
+          <div class="p-contact-form__field p-contact-form__checks" role="radiogroup" aria-labelledby="exp-label">
+            <label><input type="radio" name="experience" value="あり" /> あり</label>
+            <label><input type="radio" name="experience" value="なし" /> なし</label>
+          </div>
+        </div>
+        <div class="p-contact-form__row">
+          <div class="p-contact-form__label" id="agree-label">募集内容の確認<span class="p-required">必須</span></div>
+          <div class="p-contact-form__field p-contact-form__checks" role="group" aria-labelledby="agree-label">
+            <label><input type="checkbox" name="agree" value="募集内容を確認しました" required /> 上の募集内容（応募できる方・お仕事の内容など）を確認しました</label>
+          </div>
+        </div>
+      </>
+    ) : (
+      <div class="p-contact-form__row">
+        <div class="p-contact-form__label" id="agree-label">確認事項<span class="p-required">必須</span></div>
+        <div class="p-contact-form__field p-contact-form__checks" role="group" aria-labelledby="agree-label">
+          <label><input type="checkbox" name="agree" value="1年を通して4つのお祭りでご奉仕できます" required /> 1年を通して4つのお祭り（歳旦祭・春祭り・夏祭り・秋祭り）でご奉仕できます</label>
+          <label><input type="checkbox" name="agree" value="練習日の神社までの送り迎えができます" required /> 練習日の神社までの送り迎えができます</label>
+        </div>
+      </div>
+    )}
+
+    <div class="p-contact-form__row">
+      <div class="p-contact-form__label"><label for="your-message">ご質問など</label></div>
+      <div class="p-contact-form__field"><textarea id="your-message" name="your-message" rows="5" maxlength="2000"></textarea></div>
+    </div>
+
+    <!-- スパム対策（人には見えない項目） -->
+    <div class="u-visually-hidden" aria-hidden="true">
+      <label>空欄のままにしてください <input type="text" name="website" tabindex="-1" autocomplete="off" /></label>
+    </div>
+    <div class="cf-turnstile" data-sitekey={siteKey} data-language="ja"></div>
+    <p class="p-contact-form__note">※ ご入力いただいた内容は、今回の募集のご連絡にのみ使用します。</p>
+    <p class="p-contact-form__error js-form-error" role="alert" hidden></p>
+    <p class="p-contact-form__submit"><button type="submit" class="p-btn">この内容で応募する</button></p>
+  </form>
+  <div class="p-apply__done js-apply-done" tabindex="-1" hidden>
+    <p><strong>ご応募ありがとうございます。</strong></p>
+    <p>ご入力いただいたメールアドレスに控えをお送りしました。内容を確認のうえ、神社よりご連絡いたします。<br />
+    数日たっても連絡がない場合は、お手数ですがお電話（0791-52-6464）でお問い合わせください。</p>
+  </div>
+</section>
+
+<script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+<script>
+  const form = document.querySelector<HTMLFormElement>('.js-apply-form')!;
+  const error = form.querySelector<HTMLElement>('.js-form-error')!;
+  const done = document.querySelector<HTMLElement>('.js-apply-done')!;
+  const button = form.querySelector<HTMLButtonElement>('button[type=submit]')!;
+  const label = button.textContent;
+
+  // 巫女：選んだご職業に応じて追加の項目を表示し、必須にする
+  //   高校生 → 保護者の同意・学校の許可
+  //   社会人 → お勤め先・勤務先の許可
+  const toggle = (selector: string, on: boolean) =>
+    form.querySelectorAll<HTMLElement>(selector).forEach((row) => {
+      row.hidden = !on;
+      row.querySelectorAll('input').forEach((input) => (input.required = on));
+    });
+  const syncConsent = () => {
+    const status = form.querySelector<HTMLInputElement>('input[name=status]:checked')?.value;
+    toggle('.js-consent-row', status === '高校生');
+    toggle('.js-work-row', status === '社会人');
+  };
+  form.querySelectorAll('input[name=status]').forEach((el) => el.addEventListener('change', syncConsent));
+
+  const showError = (message: string) => {
+    error.textContent = message;
+    error.hidden = false;
+    error.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    error.hidden = true;
+    form.querySelectorAll('.is-invalid').forEach((el) => el.classList.remove('is-invalid'));
+
+    const fields = [...form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>('[required]')];
+    const invalid: HTMLElement[] = fields.filter((el) => {
+      if (el instanceof HTMLInputElement && (el.type === 'radio' || el.type === 'checkbox')) return !el.checkValidity();
+      return !el.value.trim() || !el.checkValidity();
+    });
+    // 「1つ以上選択」のチェックボックス
+    form.querySelectorAll<HTMLElement>('.js-need-one').forEach((group) => {
+      if (!group.querySelector('input:checked')) invalid.push(group.querySelector('input')!);
+    });
+    if (invalid.length) {
+      invalid.forEach((el) => (el.closest('.p-contact-form__checks') ?? el).classList.add('is-invalid'));
+      invalid[0].focus();
+      showError('入力されていない必須項目があります。赤い枠の項目をご確認ください。');
+      return;
+    }
+
+    button.disabled = true;
+    button.textContent = '送信中…';
+    try {
+      const res = await fetch(form.action, { method: 'POST', body: new FormData(form) });
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (res.ok && data.ok) {
+        form.hidden = true;
+        done.hidden = false;
+        done.focus();
+        done.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+      showError(data.error || '送信に失敗しました。時間をおいて再度お試しいただくか、お電話でお申し込みください。');
+    } catch {
+      showError('通信エラーが発生しました。時間をおいて再度お試しください。');
+    }
+    button.disabled = false;
+    button.textContent = label;
+    (window as unknown as { turnstile?: { reset: () => void } }).turnstile?.reset();
+  });
+</script>
