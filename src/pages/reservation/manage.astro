@@ -1,0 +1,230 @@
+---
+/**
+ * ご予約の確認・変更・キャンセル（予約された方が、受付・確定のメールのリンクから開く）
+ * /reservation/manage/?no=W000121&k=…（k は予約番号から計算した記号。src/lib/manage-key.ts）
+ * 書き込みは /api/reservation/manage。検索には出さない。
+ */
+import FixedPage from '../../layouts/FixedPage.astro';
+---
+<FixedPage slug="reservation-manage" narrow>
+  <Fragment slot="head"><meta name="robots" content="noindex, nofollow" /></Fragment>
+
+  <div class="p-manage" id="js-manage">
+    <p class="p-manage__status" id="js-status" role="status">読み込んでいます…</p>
+
+    <section class="p-manage__box" id="js-detail" hidden>
+      <h2 class="p-reserve__heading">ご予約の内容</h2>
+      <dl class="p-manage__list">
+        <dt>予約番号</dt><dd id="js-no"></dd>
+        <dt>状態</dt><dd id="js-state"></dd>
+        <dt id="js-when-label">日時</dt><dd id="js-when"></dd>
+        <dt>ご祈祷を受ける方</dt><dd id="js-people"></dd>
+      </dl>
+      <p class="p-manage__reason" id="js-reason" hidden></p>
+    </section>
+
+    <section class="p-manage__box" id="js-change" hidden>
+      <h2 class="p-reserve__heading" id="js-change-title">日時を変える</h2>
+      <p class="p-reserve__help" id="js-change-help"></p>
+      <div class="p-contact-form p-reserve">
+        <div class="p-contact-form__row">
+          <div class="p-contact-form__label"><label for="date">日にち</label></div>
+          <div class="p-contact-form__field"><select id="date"><option value="">読み込んでいます…</option></select></div>
+        </div>
+        <div class="p-contact-form__row" id="js-time-row">
+          <div class="p-contact-form__label">時刻</div>
+          <div class="p-contact-form__field"><div class="p-reserve__times" id="js-times"><p class="p-reserve__help">先に日にちを選んでください。</p></div></div>
+        </div>
+      </div>
+      <p class="p-contact-form__submit"><button type="button" class="p-btn" id="js-change-btn">この日時に変える</button></p>
+    </section>
+
+    <section class="p-manage__box" id="js-cancel" hidden>
+      <h2 class="p-reserve__heading">キャンセルする</h2>
+      <p class="p-reserve__help">ご一緒に受けられる方も含めて、このご予約全体をキャンセルします。一部の方だけのキャンセルやお名前・ご祈願の変更は、お電話でご連絡ください。</p>
+      <p class="p-contact-form__submit"><button type="button" class="p-btn p-manage__cancel" id="js-cancel-btn">予約をキャンセルする</button></p>
+    </section>
+
+    <p class="p-contact-form__error" id="js-error" role="alert" hidden></p>
+  </div>
+
+  <style is:global>
+    .p-manage__box { margin-top: 30px; }
+    .p-manage__list { display: grid; grid-template-columns: 9em 1fr; gap: 10px 16px; margin: 0; font-size: 15px; }
+    .p-manage__list dt { font-weight: 700; }
+    .p-manage__list dd { margin: 0; }
+    .p-manage__list dd span { display: block; }
+    .p-manage__reason { margin-top: 16px; padding: 12px 14px; background: #f6f6f6; font-size: 14px; }
+    .p-manage__status { font-size: 15px; }
+    .p-manage__status.is-done { padding: 14px 16px; border: 1px solid #0a7a2f; background: #eef8f1; font-weight: 700; }
+    .p-manage .p-manage__cancel { background: #fff; color: var(--color-red); border: 1px solid var(--color-red); }
+    @media (max-width: 600px) { .p-manage__list { grid-template-columns: 1fr; gap: 2px; } .p-manage__list dd { margin-bottom: 10px; } }
+  </style>
+
+  <script>
+    import { dateLabel } from '../../lib/reservation';
+
+    type Info = {
+      ok: boolean; error?: string; no: string; status: string; route: string; method: string; advance: boolean;
+      dateLabel: string; time: string; people: { name: string; prayers: string[] }[];
+      canCancel: boolean; canChange: boolean; reason: string; advanceDates: string[];
+    };
+    type Day = { date: string; label: string; slots: { time: string; available: boolean }[] };
+
+    const params = new URLSearchParams(location.search);
+    const no = params.get('no') ?? '';
+    const k = params.get('k') ?? '';
+    const $ = (id: string) => document.getElementById(id)!;
+    const statusEl = $('js-status');
+    const errorEl = $('js-error');
+    const dateSel = $('date') as HTMLSelectElement;
+    const times = $('js-times');
+    let info: Info;
+    let days: Day[] = [];
+
+    const showError = (m: string) => {
+      errorEl.textContent = m;
+      errorEl.hidden = false;
+      errorEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+    const STATE: Record<string, string> = {
+      仮予約: '仮予約（神社で確認中です）', 予約確定: 'ご予約確定', 事前申込: '事前申し込み', キャンセル: 'キャンセル済み', 登録完了: 'ご祈祷済み',
+    };
+
+    const render = () => {
+      $('js-detail').hidden = false;
+      $('js-no').textContent = info.no;
+      $('js-state').textContent = STATE[info.status] ?? info.status;
+      $('js-when-label').textContent = info.advance ? 'ご来社予定日' : info.method === '郵送' ? 'ご祈祷方法' : '日時';
+      $('js-when').textContent = info.method === '郵送' ? '郵送' : `${info.dateLabel}${info.time ? `　${info.time.replace(/^0/, '')}` : ''}`;
+      $('js-people').innerHTML = '';
+      for (const p of info.people) {
+        const s = document.createElement('span');
+        s.textContent = `${p.name}（${p.prayers.join('・')}）`;
+        $('js-people').appendChild(s);
+      }
+      const reason = $('js-reason');
+      reason.textContent = info.reason;
+      reason.hidden = !info.reason;
+      $('js-cancel').hidden = !info.canCancel;
+      $('js-change').hidden = !info.canChange;
+      statusEl.hidden = true;
+      if (info.canChange) setupChange();
+    };
+
+    const renderTimes = () => {
+      const day = days.find((d) => d.date === dateSel.value);
+      times.innerHTML = '';
+      if (!day) {
+        times.innerHTML = '<p class="p-reserve__help">先に日にちを選んでください。</p>';
+        return;
+      }
+      for (const s of day.slots) {
+        const label = document.createElement('label');
+        label.className = 'p-reserve__time';
+        label.innerHTML = `<input type="radio" name="time" value="${s.time}" ${s.available ? '' : 'disabled'} /><span>${s.time.replace(/^0/, '')}</span>`;
+        times.appendChild(label);
+      }
+    };
+
+    let setupDone = false;
+    const setupChange = async () => {
+      if (setupDone) return;
+      setupDone = true;
+      if (info.advance) {
+        $('js-change-title').textContent = 'ご来社予定日を変える';
+        $('js-change-help').textContent = '事前申し込みを受け付けている日から選べます。時刻のご予約ではありません。';
+        $('js-time-row').hidden = true;
+        $('js-change-btn').textContent = 'この日に変える';
+        dateSel.innerHTML = '<option value="">選んでください</option>';
+        for (const d of info.advanceDates) dateSel.add(new Option(dateLabel(d), d));
+        return;
+      }
+      $('js-change-help').textContent = '空いている日時から選べます。日時を変えると、神社で確認するまで「仮予約」に戻ります。確認後、ご予約確定のメールをお送りします。';
+      try {
+        const res = await fetch('/api/reservation/slots', { cache: 'no-store' });
+        const data = (await res.json()) as { ok: boolean; dates?: Day[] };
+        if (!res.ok || !data.ok || !data.dates) throw new Error();
+        days = data.dates;
+        dateSel.innerHTML = '<option value="">選んでください</option>';
+        for (const d of days) {
+          const free = d.slots.some((s) => s.available);
+          const opt = new Option(free ? d.label : `${d.label}　受付できません`, d.date);
+          opt.disabled = !free;
+          dateSel.add(opt);
+        }
+      } catch {
+        dateSel.innerHTML = '<option value="">読み込めませんでした</option>';
+      }
+      renderTimes();
+    };
+    dateSel.addEventListener('change', renderTimes);
+
+    const post = async (body: Record<string, string>) => {
+      errorEl.hidden = true;
+      const res = await fetch('/api/reservation/manage', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ no, k, ...body }),
+      });
+      return { res, data: (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; refresh?: boolean; dateLabel?: string; time?: string; status?: string } };
+    };
+    const done = (message: string) => {
+      ['js-change', 'js-cancel', 'js-detail'].forEach((id) => ($(id).hidden = true));
+      statusEl.textContent = message;
+      statusEl.className = 'p-manage__status is-done';
+      statusEl.hidden = false;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    $('js-cancel-btn').addEventListener('click', async () => {
+      if (!confirm('このご予約をキャンセルします。よろしいですか？')) return;
+      const b = $('js-cancel-btn') as HTMLButtonElement;
+      b.disabled = true;
+      try {
+        const { res, data } = await post({ action: 'cancel' });
+        if (res.ok && data.ok) return done('ご予約をキャンセルしました。キャンセルのお知らせのメールをお送りします。');
+        showError(data.error || 'キャンセルできませんでした。');
+      } catch {
+        showError('通信エラーが発生しました。時間をおいてもう一度お試しください。');
+      }
+      b.disabled = false;
+    });
+
+    $('js-change-btn').addEventListener('click', async () => {
+      const date = dateSel.value;
+      const time = (document.querySelector<HTMLInputElement>('input[name=time]:checked')?.value) ?? '';
+      if (!date || (!info.advance && !time)) return showError(info.advance ? '日にちを選んでください。' : '日にちと時刻を選んでください。');
+      const label = `${dateLabel(date)}${time ? ` ${time.replace(/^0/, '')}` : ''}`;
+      if (!confirm(`${label} に変えます。よろしいですか？`)) return;
+      const b = $('js-change-btn') as HTMLButtonElement;
+      b.disabled = true;
+      try {
+        const { res, data } = await post({ action: 'change', date, time });
+        if (res.ok && data.ok) {
+          return done(info.advance
+            ? `ご来社予定日を ${data.dateLabel} に変えました。`
+            : `ご希望の日時を ${data.dateLabel} ${String(data.time ?? '').replace(/^0/, '')} に変えました。神社で確認のうえ、ご予約確定のメールをお送りします。`);
+        }
+        showError(data.error || '変えられませんでした。');
+        if (data.refresh) { setupDone = false; await setupChange(); }
+      } catch {
+        showError('通信エラーが発生しました。時間をおいてもう一度お試しください。');
+      }
+      b.disabled = false;
+    });
+
+    (async () => {
+      if (!no || !k) {
+        statusEl.textContent = 'このページは、ご予約のメールにあるリンクから開いてください。';
+        return;
+      }
+      try {
+        const res = await fetch(`/api/reservation/manage?${new URLSearchParams({ no, k })}`, { cache: 'no-store' });
+        info = (await res.json()) as Info;
+        if (!res.ok || !info.ok) throw new Error(info.error || '読み込めませんでした。');
+        render();
+      } catch (e) {
+        statusEl.textContent = (e as Error).message;
+      }
+    })();
+  </script>
+</FixedPage>
