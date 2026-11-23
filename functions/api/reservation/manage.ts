@@ -12,7 +12,8 @@
  * 日時の変更：ご家族全員の行の日時を変え、Web の予約は「仮予約」に戻す（神社で確かめて改めて予約確定にする）。
  *   事前申込は日にちだけを変え、「事前申込」のまま。変更前の日時は「変更前の御祈祷日」「変更前の御祈祷時刻」に残す。
  *   代表の方の行の「変更受付日時」に変えた日時を入れる（Airtable の「予約の日時変更（Web）」がこれを見て、ご本人にメールを送る）。
- * どちらも、代表の方の行の「予約の詳細」のいちばん上に書き足し、設定があれば神社にメールで知らせる。
+ * どちらも、代表の方の行の「予約の詳細」のいちばん上に書き足す。キャンセルは、設定があれば神社にメールで知らせる
+ *   （日時の変更の神社への知らせは、Airtable の「予約の日時変更（Web）」のオートメーションが送る）。
  */
 
 import {
@@ -222,7 +223,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       console.error('manage: 変更の書き込みに失敗', e);
       return fail('ただいま受け付けできません。時間をおいてもう一度お試しいただくか、' + PHONE_NOTE, 502);
     }
-    await notify(env, `【予約の日時の変更】${no} ${names}`, `${line}\n\n予約番号：${no}\nお名前：${names}\n${advance ? '' : '予約は「仮予約」に戻っています。確かめて予約確定にしてください。\n'}`);
+    // 神社への知らせは、Airtable の「予約の日時変更（Web）」のオートメーションが送る
     return json({ ok: true, action: 'change', status: advance ? '事前申込' : '仮予約', dateLabel: dateLabel(date), time: advance ? '' : time });
   }
 
