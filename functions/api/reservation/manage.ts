@@ -12,8 +12,8 @@
  * 日時の変更：ご家族全員の行の日時を変え、Web の予約は「仮予約」に戻す（神社で確かめて改めて予約確定にする）。
  *   事前申込は日にちだけを変え、「事前申込」のまま。変更前の日時は「変更前の御祈祷日」「変更前の御祈祷時刻」に残す。
  *   代表の方の行の「変更受付日時」に変えた日時を入れる（Airtable の「予約の日時変更（Web）」がこれを見て、ご本人にメールを送る）。
- * どちらも、代表の方の行の「予約の詳細」のいちばん上に書き足す。キャンセルは、設定があれば神社にメールで知らせる
- *   （日時の変更の神社への知らせは、Airtable の「予約の日時変更（Web）」のオートメーションが送る）。
+ * どちらも、代表の方の行の「予約の詳細」のいちばん上に書き足す。
+ * 神社やご本人へのメールは、Airtable のオートメーション（「予約キャンセル」「予約の日時変更（Web）」）が送る。
  */
 
 import {
@@ -22,11 +22,7 @@ import {
 import { isManageKey, type ManageEnv } from '../../../src/lib/manage-key';
 import { PHONE, SLOT_TIMES, advanceDates, bookableDates, dateLabel, isClosed, storedDate } from '../../../src/lib/reservation';
 
-interface Env extends AirtableEnv, ManageEnv {
-  RESEND_API_KEY?: string;
-  MAIL_TO?: string;
-  MAIL_FROM?: string;
-}
+type Env = AirtableEnv & ManageEnv;
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -100,20 +96,6 @@ const summary = (r: NonNullable<Awaited<ReturnType<typeof load>>>, no: string) =
   reason: r.reason,
 });
 
-/** 神社に知らせる（メールの設定がなければ何もしない） */
-async function notify(env: Env, subject: string, text: string) {
-  if (!env.RESEND_API_KEY || !env.MAIL_TO || !env.MAIL_FROM) return;
-  try {
-    await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: env.MAIL_FROM, to: env.MAIL_TO, subject, text }),
-    });
-  } catch (e) {
-    console.error('manage: 神社へのメールを送れませんでした', e);
-  }
-}
-
 const check = async (env: Env, no: string, k: string) => {
   if (!/^W\d{6}$/.test(no) || !(await isManageKey(env, no, k))) return null;
   return true;
@@ -156,7 +138,6 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return fail('ただいま受け付けできません。時間をおいてもう一度お試しいただくか、' + PHONE_NOTE, 502);
   }
   if (!r) return fail('予約が見つかりませんでした。' + PHONE_NOTE, 404);
-  const names = r.members.map((m) => str(m.fields['名前'])).filter(Boolean).join('、');
   const before = `${r.date ? dateLabel(r.date) : '（日にちなし）'}${r.time ? ` ${r.time}` : ''}`;
   const details = str(r.rep.fields['予約の詳細']);
 
@@ -170,7 +151,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       console.error('manage: キャンセルの書き込みに失敗', e);
       return fail('ただいま受け付けできません。時間をおいてもう一度お試しいただくか、' + PHONE_NOTE, 502);
     }
-    await notify(env, `【予約のキャンセル】${no} ${names}`, `${line}\n\n予約番号：${no}\nお名前：${names}\n日時：${before}`);
+    // 神社への知らせは、Airtable の「予約キャンセル」のオートメーションが送る
     return json({ ok: true, action: 'cancel' });
   }
 
