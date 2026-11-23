@@ -178,6 +178,10 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     }
     const after = `${dateLabel(date)}${advance ? '' : ` ${time}`}`;
     const line = `【日時の変更】${nowLabel()} に、お申し込みの方がWebで変更されました（${before} → ${after}）。`;
+    // 予約の詳細の中の「ご祈祷希望日時」「ご来社予定日」も、新しい日時に書き換える（メールに載るので）
+    const newDetails = details
+      .replace(/^ご祈祷希望日時：.*$/m, `ご祈祷希望日時：${storedDate(date)} ${time}`)
+      .replace(/^ご来社予定日：.*$/m, `ご来社予定日：${storedDate(date)}`);
     const targets = r.members.filter((m) => str(m.fields[F.status]) !== 'キャンセル');
     const update = (withBefore: boolean) =>
       updateRecords(env, targets.map((m) => ({
@@ -187,7 +191,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
           [F.time]: advance ? '' : time,
           [F.status]: advance ? '事前申込' : '仮予約',
           ...(withBefore ? { 変更前の御祈祷日: str(m.fields[F.date]), 変更前の御祈祷時刻: str(m.fields[F.time]) } : {}),
-          ...(m.id === r.rep.id ? { 予約の詳細: details ? `${line}\n\n${details}` : line } : {}),
+          ...(m.id === r.rep.id ? { 予約の詳細: newDetails ? `${line}\n\n${newDetails}` : line } : {}),
           // 「予約の日時変更（Web）」のメールのきっかけ（変えるたびに値が変わる）
           ...(withBefore && m.id === r.rep.id ? { 変更受付日時: nowLabel() } : {}),
         },
