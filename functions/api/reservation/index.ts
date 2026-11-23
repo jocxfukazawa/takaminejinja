@@ -24,6 +24,7 @@ import {
   advanceDates, bookableDates, feeSummary, wareki, isClosed, isValidBirthday, jstNow, receptionWindow, storedDate, type Extra,
 } from '../../../src/lib/reservation';
 import { isReceptionKey } from '../../../src/lib/reception-key';
+import { manageUrl, type ManageEnv } from '../../../src/lib/manage-key';
 import {
   AirtableError, F, closures, createRecords, deleteRecords, formatWebNo, isFirstInSlot, lastWebNumber, missingSettings,
   receptionDays, recordsWithNumbers, takenSlots, updateRecords, type AirtableEnv, type AirtableRecord,
@@ -386,9 +387,20 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return fields;
   });
 
+  // 予約の確認・変更・キャンセル用のリンクを、代表の方の行に入れておく（受付のメールに差し込むので、行を作るときに一緒に入れる）。
+  // 「予約の変更・キャンセル用URL」の項目がない表なら、入れずに書き込み直す
+  const URL_FIELD = '予約の変更・キャンセル用URL';
+  const manageLink = !reception && v.email ? await manageUrl(env as ManageEnv, new URL(request.url).origin, numbers[0]).catch(() => '') : '';
+  if (manageLink) rows[0][URL_FIELD] = manageLink;
   let records;
   try {
-    records = await createRecords(env, rows);
+    try {
+      records = await createRecords(env, rows);
+    } catch (e) {
+      if (!manageLink || !(e instanceof AirtableError) || !e.message.includes(URL_FIELD)) throw e;
+      delete rows[0][URL_FIELD];
+      records = await createRecords(env, rows);
+    }
   } catch (e) {
     console.error('reservation: Airtable への書き込みに失敗', e);
     return fail(UNAVAILABLE, 502, cause('予約の書き込み', e));
@@ -415,6 +427,15 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     });
   } catch (e) {
     console.error('reservation: 番号の重なりの確認に失敗', e);
+  }
+
+  // 番号を付け直したときは、リンクも新しい番号のものにする
+  if (manageLink && records[0] && !manageLink.includes(`no=${numbers[0]}&`)) {
+    try {
+      await updateRecords(env, [{ id: records[0].id, fields: { [URL_FIELD]: await manageUrl(env as ManageEnv, new URL(request.url).origin, numbers[0]) } }]);
+    } catch (e) {
+      console.error('reservation: 変更・キャンセル用のリンクを直せませんでした', e);
+    }
   }
 
   if (reception) return json({ ok: true, no: reservationNo(), total });
